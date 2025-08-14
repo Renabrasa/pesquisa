@@ -1,0 +1,102 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Detalhes da Pesquisa{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Detalhes da Pesquisa</h2>
+    <a href="/gestor" class="btn btn-secondary">← Voltar ao Dashboard</a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">📋 Informações da Pesquisa</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Cliente:</strong></td>
+                        <td>{{ pesquisa.nome_cliente }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Código:</strong></td>
+                        <td>{{ pesquisa.codigo_cliente }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Treinamento:</strong></td>
+                        <td>{{ pesquisa.nome_treinamento }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Produto:</strong></td>
+                        <td>{{ pesquisa.tipo_produto }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Agente:</strong></td>
+                        <td>{{ pesquisa.agente_nome }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Criado em:</strong></td>
+                        <td>{{ pesquisa.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Expira em:</strong></td>
+                        <td>{{ pesquisa.data_expiracao.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                    {% if pesquisa.data_resposta %}
+                    <tr>
+                        <td><strong>Respondida em:</strong></td>
+                        <td>{{ pesquisa.data_resposta.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td><strong>Status:</strong></td>
+                        <td>
+                            {% if pesquisa.respondida %}
+                                <span class="badge bg-success">Respondida</span>
+                            {% else %}
+                                <span class="badge bg-warning">Ativa</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">💬 Respostas do Cliente</h5>
+            </div>
+            <div class="card-body">
+                {% if respostas %}
+                    {% for resposta in respostas %}
+                    <div class="mb-4 p-3 border rounded">
+                        <h6 class="text-primary">{{ resposta.pergunta_texto }}</h6>
+                        <div class="mt-2">
+                            {% if resposta.resposta_texto %}
+                                <p class="mb-0">{{ resposta.resposta_texto }}</p>
+                            {% elif resposta.resposta_numerica %}
+                                <span class="badge bg-info fs-6">{{ resposta.resposta_numerica }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ resposta.resposta_opcao }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted">
+                        <p>Esta pesquisa ainda não foi respondida pelo cliente.</p>
+                        {% if not pesquisa.respondida %}
+                            <small>Link da pesquisa: <br>
+                            <code>{{ request.url_root }}pesquisa/{{ pesquisa.uuid }}</code></small>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

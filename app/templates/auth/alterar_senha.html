@@ -1,0 +1,122 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Alterar Senha{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">🔑 Alterar Senha</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="senha_atual" class="form-label">Senha Atual *</label>
+                        <input type="password" class="form-control" id="senha_atual" name="senha_atual" required>
+                        <small class="form-text text-muted">Digite sua senha atual para confirmar</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="nova_senha" class="form-label">Nova Senha *</label>
+                        <input type="password" class="form-control" id="nova_senha" name="nova_senha" 
+                               required minlength="6">
+                        <small class="form-text text-muted">Mínimo de 6 caracteres</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmar_senha" class="form-label">Confirmar Nova Senha *</label>
+                        <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha" 
+                               required minlength="6">
+                        <small class="form-text text-muted">Digite a nova senha novamente</small>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning">
+                            🔑 Alterar Senha
+                        </button>
+                        <a href="{{ url_for('auth.perfil') }}" class="btn btn-secondary">
+                            ❌ Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">💡 Dicas para Senha Segura</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small">
+                    <li>✅ Use pelo menos 6 caracteres</li>
+                    <li>✅ Combine letras e números</li>
+                    <li>✅ Use caracteres especiais (!@#$%)</li>
+                    <li>✅ Evite palavras óbvias</li>
+                    <li>✅ Não use dados pessoais</li>
+                </ul>
+                
+                <div class="alert alert-warning alert-sm mt-3">
+                    <small>
+                        <strong>⚠️ Importante:</strong><br>
+                        Após alterar a senha, você permanecerá logado, 
+                        mas precisará usar a nova senha nos próximos logins.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Validar se as senhas coincidem
+document.getElementById('confirmar_senha').addEventListener('input', function() {
+    const novaSenha = document.getElementById('nova_senha').value;
+    const confirmarSenha = this.value;
+    
+    if (novaSenha !== confirmarSenha) {
+        this.setCustomValidity('As senhas não coincidem');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+// Validar força da senha
+document.getElementById('nova_senha').addEventListener('input', function() {
+    const senha = this.value;
+    let forca = 0;
+    
+    if (senha.length >= 6) forca++;
+    if (/[A-Z]/.test(senha)) forca++;
+    if (/[0-9]/.test(senha)) forca++;
+    if (/[^A-Za-z0-9]/.test(senha)) forca++;
+    
+    let cor = 'red';
+    let texto = 'Fraca';
+    
+    if (forca >= 2) {
+        cor = 'orange';
+        texto = 'Média';
+    }
+    if (forca >= 3) {
+        cor = 'green';
+        texto = 'Forte';
+    }
+    
+    // Mostrar indicador de força (opcional)
+    let indicador = document.getElementById('forca-senha');
+    if (!indicador) {
+        indicador = document.createElement('small');
+        indicador.id = 'forca-senha';
+        indicador.className = 'form-text';
+        this.parentNode.appendChild(indicador);
+    }
+    
+    indicador.innerHTML = `Força da senha: <span style="color: ${cor};">${texto}</span>`;
+});
+</script>
+{% endblock %}

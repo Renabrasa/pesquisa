@@ -1,0 +1,260 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Editar Pergunta{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>✏️ Editar Pergunta</h2>
+    <a href="{{ url_for('gestor.perguntas') }}" class="btn btn-outline-secondary">
+        ← Voltar às Perguntas
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Editar Pergunta</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% if total_respostas > 0 %}
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Modo Restrito:</strong> Esta pergunta já possui {{ total_respostas }} resposta(s). 
+                        Apenas campos seguros podem ser alterados (ordem, obrigatória, ativa).
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tipo_produto_id" class="form-label">Produto *</label>
+                                <select class="form-control" id="tipo_produto_id" name="tipo_produto_id" 
+                                        {% if total_respostas > 0 %}disabled{% endif %} required>
+                                    {% for produto in produtos %}
+                                    <option value="{{ produto.id }}" 
+                                            {% if produto.id == pergunta.tipo_produto_id %}selected{% endif %}>
+                                        {{ produto.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if total_respostas > 0 %}
+                                <small class="text-muted">🔒 Bloqueado por segurança</small>
+                                <input type="hidden" name="tipo_produto_id" value="{{ pergunta.tipo_produto_id }}">
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="tipo_pergunta_id" class="form-label">Tipo *</label>
+                                <select class="form-control" id="tipo_pergunta_id" name="tipo_pergunta_id" 
+                                        {% if total_respostas > 0 %}disabled{% endif %}
+                                        required onchange="mostrarOpcoes()">
+                                    {% for tipo in tipos_perguntas %}
+                                    <option value="{{ tipo.id }}"
+                                            {% if tipo.id == pergunta.tipo_pergunta_id %}selected{% endif %}>
+                                        {{ tipo.nome.replace('_', ' ').title() }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if total_respostas > 0 %}
+                                <small class="text-muted">🔒 Bloqueado por segurança</small>
+                                <input type="hidden" name="tipo_pergunta_id" value="{{ pergunta.tipo_pergunta_id }}">
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="ordem" class="form-label">Ordem *</label>
+                                <input type="number" class="form-control" id="ordem" name="ordem" 
+                                       min="1" max="20" value="{{ pergunta.ordem }}" required>
+                                <small class="text-success">✅ Pode alterar</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="texto" class="form-label">Texto da Pergunta *</label>
+                        <textarea class="form-control" id="texto" name="texto" rows="3" 
+                                  {% if total_respostas > 0 %}disabled{% endif %} required>{{ pergunta.texto }}</textarea>
+                        {% if total_respostas > 0 %}
+                        <small class="text-muted">🔒 Bloqueado por segurança</small>
+                        <input type="hidden" name="texto" value="{{ pergunta.texto }}">
+                        {% endif %}
+                    </div>
+                    
+                    <div id="divOpcoes" style="display: none;">
+                        <label class="form-label">Opções de Resposta</label>
+                        {% if total_respostas > 0 %}
+                        <div class="alert alert-info alert-sm">
+                            <small>🔒 Opções não podem ser alteradas quando há respostas existentes</small>
+                        </div>
+                        <div class="mb-3">
+                            {% for opcao in pergunta.opcoes %}
+                            <div class="form-control mb-1" disabled>{{ opcao }}</div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div id="containerOpcoes">
+                            <!-- Será preenchido pelo JavaScript -->
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="obrigatoria" 
+                                       name="obrigatoria" {% if pergunta.obrigatoria %}checked{% endif %}>
+                                <label class="form-check-label" for="obrigatoria">
+                                    Pergunta obrigatória
+                                </label>
+                                <br><small class="text-success">✅ Pode alterar</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ativa" 
+                                       name="ativa" {% if pergunta.ativa %}checked{% endif %}>
+                                <label class="form-check-label" for="ativa">
+                                    Pergunta ativa
+                                </label>
+                                <br><small class="text-success">✅ Pode alterar</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning">
+                            💾 Salvar Alterações
+                        </button>
+                        <a href="{{ url_for('gestor.perguntas') }}" class="btn btn-secondary">
+                            ❌ Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">📋 Informações da Pergunta</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>ID:</strong> {{ pergunta.id }}</p>
+                <p><strong>Criada em:</strong> {{ pergunta.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                {% if pergunta.updated_at and pergunta.updated_at != pergunta.created_at %}
+                <p><strong>Última alteração:</strong> {{ pergunta.updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                {% endif %}
+                
+                <!-- Verificar se tem respostas -->
+                {% if total_respostas > 0 %}
+                <div class="alert alert-warning alert-sm">
+                    <small>
+                        <strong>⚠️ Atenção:</strong><br>
+                        Esta pergunta já possui {{ total_respostas }} resposta(s). 
+                        Alterações podem afetar a consistência dos dados.
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Opções atuais da pergunta (vem do backend)
+const opcoesAtuais = {{ pergunta.opcoes|safe if pergunta.opcoes else '[]' }};
+
+function mostrarOpcoes() {
+    const tipo = document.getElementById('tipo_pergunta_id').value;
+    const divOpcoes = document.getElementById('divOpcoes');
+    
+    // Tipos que precisam de opções: 2=multipla_escolha, 5=escala_satisfacao
+    if (tipo === '2' || tipo === '5') {
+        divOpcoes.style.display = 'block';
+        
+        if (tipo === '5' && opcoesAtuais.length === 0) {
+            // Pré-popular opções para escala de satisfação se não existirem
+            const opcoes = ['Muito Insatisfeito', 'Insatisfeito', 'Neutro', 'Satisfeito', 'Muito Satisfeito'];
+            preencherOpcoes(opcoes);
+        } else {
+            // Usar opções existentes
+            preencherOpcoes(opcoesAtuais);
+        }
+    } else {
+        divOpcoes.style.display = 'none';
+    }
+}
+
+function preencherOpcoes(opcoes) {
+    const container = document.getElementById('containerOpcoes');
+    container.innerHTML = '';
+    
+    opcoes.forEach((opcao, index) => {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" class="form-control opcao-input" value="${opcao}" placeholder="Opção ${index + 1}">
+            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">-</button>
+        `;
+        container.appendChild(div);
+    });
+    
+    // Adicionar botão para nova opção
+    const divNova = document.createElement('div');
+    divNova.innerHTML = '<button type="button" class="btn btn-outline-success" onclick="adicionarOpcao()">+ Adicionar Opção</button>';
+    container.appendChild(divNova);
+}
+
+function adicionarOpcao() {
+    const container = document.getElementById('containerOpcoes');
+    const numOpcoes = container.querySelectorAll('.opcao-input').length;
+    
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+        <input type="text" class="form-control opcao-input" placeholder="Opção ${numOpcoes + 1}">
+        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">-</button>
+    `;
+    
+    // Inserir antes do botão "Adicionar Opção"
+    container.insertBefore(div, container.lastElementChild);
+}
+
+// Processar formulário antes do envio
+document.querySelector('form').addEventListener('submit', function(e) {
+    const tipo = document.getElementById('tipo_pergunta_id').value;
+    
+    if (tipo === '2' || tipo === '5') {
+        const opcoes = [];
+        document.querySelectorAll('.opcao-input').forEach(input => {
+            if (input.value.trim()) {
+                opcoes.push(input.value.trim());
+            }
+        });
+        
+        // Adicionar campo hidden com as opções
+        const inputOpcoes = document.createElement('input');
+        inputOpcoes.type = 'hidden';
+        inputOpcoes.name = 'opcoes';
+        inputOpcoes.value = JSON.stringify(opcoes);
+        this.appendChild(inputOpcoes);
+    }
+});
+
+// Inicializar opções na carga da página
+document.addEventListener('DOMContentLoaded', function() {
+    mostrarOpcoes();
+});
+</script>
+{% endblock %}

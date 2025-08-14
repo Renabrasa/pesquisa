@@ -1,0 +1,348 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Gerenciar Perguntas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>❓ Gerenciar Perguntas</h2>
+    <div>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovaPergunta">
+            ➕ Nova Pergunta
+        </button>
+        <a href="{{ url_for('gestor.dashboard') }}" class="btn btn-outline-secondary">
+            ← Voltar ao Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Filtro por Produto -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <select class="form-control" id="filtroProduto" onchange="filtrarPerguntas()">
+            <option value="">Todos os Produtos</option>
+            {% for produto in produtos %}
+            <option value="{{ produto.id }}">{{ produto.nome }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Perguntas por Produto -->
+{% for produto in produtos %}
+<div class="card mb-4 produto-card" data-produto-id="{{ produto.id }}">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">📋 {{ produto.nome }}</h5>
+        <small>{{ perguntas_por_produto[produto.id]|length }} pergunta(s)</small>
+    </div>
+    <div class="card-body">
+        {% set perguntas_produto = perguntas_por_produto[produto.id] %}
+        {% if perguntas_produto %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Ordem</th>
+                        <th>Pergunta</th>
+                        <th style="width: 120px;">Tipo</th>
+                        <th style="width: 100px;">Obrigatória</th>
+                        <th style="width: 80px;">Status</th>
+                        <th style="width: 120px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="perguntas-{{ produto.id }}">
+                    {% for pergunta in perguntas_produto %}
+                    <tr data-pergunta-id="{{ pergunta.id }}">
+                        <td>
+                            <span class="badge bg-secondary">{{ pergunta.ordem }}</span>
+                        </td>
+                        <td>
+                            <strong>{{ pergunta.texto }}</strong>
+                            {% if pergunta.opcoes %}
+                            <br><small class="text-muted">
+                                Opções: {{ pergunta.opcoes|join(', ') }}
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ pergunta.tipo_nome }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if pergunta.obrigatoria %}warning{% else %}secondary{% endif %}">
+                                {% if pergunta.obrigatoria %}Sim{% else %}Não{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if pergunta.ativa %}success{% else %}danger{% endif %}">
+                                {% if pergunta.ativa %}Ativa{% else %}Inativa{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-outline-primary" 
+                                        onclick="editarPergunta({{ pergunta.id }})" title="Editar">
+                                    ✏️
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" 
+                                        onclick="alternarStatus({{ pergunta.id }})" title="Ativar/Desativar">
+                                    {% if pergunta.ativa %}⏸️{% else %}▶️{% endif %}
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="excluirPergunta({{ pergunta.id }})" title="Excluir">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            <p>Nenhuma pergunta cadastrada para este produto</p>
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalNovaPergunta" 
+                    onclick="document.getElementById('tipo_produto_id').value='{{ produto.id }}'">
+                ➕ Adicionar Primeira Pergunta
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+<!-- Modal Nova Pergunta -->
+<div class="modal fade" id="modalNovaPergunta" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">➕ Nova Pergunta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formNovaPergunta" method="POST" action="{{ url_for('gestor.nova_pergunta') }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tipo_produto_id" class="form-label">Produto *</label>
+                                <select class="form-control" id="tipo_produto_id" name="tipo_produto_id" required>
+                                    <option value="">Selecione o produto...</option>
+                                    {% for produto in produtos %}
+                                    <option value="{{ produto.id }}">{{ produto.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="tipo_pergunta_id" class="form-label">Tipo *</label>
+                                <select class="form-control" id="tipo_pergunta_id" name="tipo_pergunta_id" 
+                                        required onchange="mostrarOpcoes()">
+                                    <option value="">Selecione...</option>
+                                    {% for tipo in tipos_perguntas %}
+                                    <option value="{{ tipo.id }}">{{ tipo.nome.replace('_', ' ').title() }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="ordem" class="form-label">Ordem *</label>
+                                <input type="number" class="form-control" id="ordem" name="ordem" 
+                                       min="1" max="20" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="texto" class="form-label">Texto da Pergunta *</label>
+                        <textarea class="form-control" id="texto" name="texto" rows="3" 
+                                  placeholder="Digite a pergunta..." required></textarea>
+                    </div>
+                    
+                    <div id="divOpcoes" style="display: none;">
+                        <label class="form-label">Opções de Resposta</label>
+                        <div id="containerOpcoes">
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control opcao-input" placeholder="Opção 1">
+                                <button type="button" class="btn btn-outline-success" onclick="adicionarOpcao()">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="obrigatoria" 
+                                       name="obrigatoria" checked>
+                                <label class="form-check-label" for="obrigatoria">
+                                    Pergunta obrigatória
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ativa" 
+                                       name="ativa" checked>
+                                <label class="form-check-label" for="ativa">
+                                    Pergunta ativa
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">💾 Salvar Pergunta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrarPerguntas() {
+    const filtro = document.getElementById('filtroProduto').value;
+    const cards = document.querySelectorAll('.produto-card');
+    
+    cards.forEach(card => {
+        if (filtro === '' || card.dataset.produtoId === filtro) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function mostrarOpcoes() {
+    const tipo = document.getElementById('tipo_pergunta_id').value;
+    const divOpcoes = document.getElementById('divOpcoes');
+    
+    // Tipos que precisam de opções: 2=multipla_escolha, 5=escala_satisfacao
+    if (tipo === '2' || tipo === '5') {
+        divOpcoes.style.display = 'block';
+        
+        // Pré-popular opções para escala de satisfação
+        if (tipo === '5') {
+            const opcoes = ['Muito Insatisfeito', 'Insatisfeito', 'Neutro', 'Satisfeito', 'Muito Satisfeito'];
+            preencherOpcoes(opcoes);
+        }
+    } else {
+        divOpcoes.style.display = 'none';
+    }
+}
+
+function preencherOpcoes(opcoes) {
+    const container = document.getElementById('containerOpcoes');
+    container.innerHTML = '';
+    
+    opcoes.forEach((opcao, index) => {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" class="form-control opcao-input" value="${opcao}" placeholder="Opção ${index + 1}">
+            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">-</button>
+        `;
+        container.appendChild(div);
+    });
+    
+    // Adicionar botão para nova opção
+    const divNova = document.createElement('div');
+    divNova.innerHTML = '<button type="button" class="btn btn-outline-success" onclick="adicionarOpcao()">+ Adicionar Opção</button>';
+    container.appendChild(divNova);
+}
+
+function adicionarOpcao() {
+    const container = document.getElementById('containerOpcoes');
+    const numOpcoes = container.querySelectorAll('.opcao-input').length;
+    
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+        <input type="text" class="form-control opcao-input" placeholder="Opção ${numOpcoes + 1}">
+        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">-</button>
+    `;
+    
+    // Inserir antes do botão "Adicionar Opção"
+    container.insertBefore(div, container.lastElementChild);
+}
+
+// Processar formulário antes do envio
+document.getElementById('formNovaPergunta').addEventListener('submit', function(e) {
+    const tipo = document.getElementById('tipo_pergunta_id').value;
+    
+    if (tipo === '2' || tipo === '5') {
+        const opcoes = [];
+        document.querySelectorAll('.opcao-input').forEach(input => {
+            if (input.value.trim()) {
+                opcoes.push(input.value.trim());
+            }
+        });
+        
+        // Adicionar campo hidden com as opções
+        const inputOpcoes = document.createElement('input');
+        inputOpcoes.type = 'hidden';
+        inputOpcoes.name = 'opcoes';
+        inputOpcoes.value = JSON.stringify(opcoes);
+        this.appendChild(inputOpcoes);
+    }
+});
+
+function editarPergunta(id) {
+    // Redirecionar para página de edição
+    window.location.href = `/gestor/perguntas/${id}/editar`;
+}
+
+function alternarStatus(id) {
+    if (confirm('Alterar status da pergunta?')) {
+        fetch(`/gestor/perguntas/${id}/status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erro ao alterar status');
+            }
+        });
+    }
+}
+
+function excluirPergunta(id) {
+    if (confirm('Tem certeza que deseja excluir esta pergunta? Esta ação não pode ser desfeita.')) {
+        fetch(`/gestor/perguntas/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert('Pergunta excluída com sucesso!');
+                location.reload();
+            } else {
+                alert('Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro de comunicação: ' + error.message);
+        });
+    }
+}
+</script>
+{% endblock %}

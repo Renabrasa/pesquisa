@@ -1,0 +1,225 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Dashboard - Agente{% endblock %}
+
+{% block nav_extra %}
+<span class="navbar-text">Dashboard do Agente</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dashboard do Agente</h2>
+    <a href="/" class="btn btn-outline-secondary">← Voltar ao Início</a>
+</div>
+
+<!-- Cards de Métricas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3 class="mb-1">{{ metricas.total_pesquisas }}</h3>
+                        <p class="mb-0">Total de Pesquisas</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-clipboard fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3 class="mb-1">{{ metricas.pesquisas_respondidas }}</h3>
+                        <p class="mb-0">Respondidas</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-check fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3 class="mb-1">{{ metricas.pesquisas_pendentes }}</h3>
+                        <p class="mb-0">Pendentes</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-clock fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3 class="mb-1">{{ metricas.taxa_resposta }}%</h3>
+                        <p class="mb-0">Taxa de Resposta</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-chart-line fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Métricas por Produto -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📊 Por Tipo de Produto</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Total</th>
+                            <th>Respondidas</th>
+                            <th>Taxa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for produto in metricas.por_produto %}
+                        <tr>
+                            <td>{{ produto.nome }}</td>
+                            <td>{{ produto.total }}</td>
+                            <td>{{ produto.respondidas }}</td>
+                            <td>{{ produto.taxa }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📈 Últimos 30 Dias</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Período</th>
+                            <th>Criadas</th>
+                            <th>Respondidas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Esta semana</td>
+                            <td>{{ metricas.esta_semana.criadas }}</td>
+                            <td>{{ metricas.esta_semana.respondidas }}</td>
+                        </tr>
+                        <tr>
+                            <td>Semana passada</td>
+                            <td>{{ metricas.semana_passada.criadas }}</td>
+                            <td>{{ metricas.semana_passada.respondidas }}</td>
+                        </tr>
+                        <tr>
+                            <td>Este mês</td>
+                            <td>{{ metricas.este_mes.criadas }}</td>
+                            <td>{{ metricas.este_mes.respondidas }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ação Principal -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">Gerar Nova Pesquisa</h5>
+                <p class="card-text">Crie um link único para enviar ao cliente</p>
+                <a href="/agente/gerar-link" class="btn btn-primary btn-lg">
+                    ➕ Gerar Link de Pesquisa
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6>ℹ️ Informações</h6>
+                <ul class="mb-0">
+                    <li>Links expiram em 48 horas</li>
+                    <li>Cliente responde apenas 1 vez</li>
+                    <li>Métricas atualizadas em tempo real</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Últimas Pesquisas -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">📋 Suas Últimas Pesquisas</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Treinamento</th>
+                                <th>Produto</th>
+                                <th>Status</th>
+                                <th>Criado em</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pesquisa in ultimas_pesquisas %}
+                            <tr>
+                                <td>{{ pesquisa.nome_cliente }}</td>
+                                <td>{{ pesquisa.nome_treinamento }}</td>
+                                <td>{{ pesquisa.tipo_produto }}</td>
+                                <td>
+                                    {% if pesquisa.respondida %}
+                                        <span class="badge bg-success">Respondida</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pendente</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ pesquisa.created_at.strftime('%d/%m/%Y') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}

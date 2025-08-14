@@ -1,0 +1,295 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Dashboard - Gestor{% endblock %}
+
+{% block nav_extra %}
+<span class="navbar-text">Dashboard do Gestor</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dashboard do Gestor</h2>
+    <a href="/" class="btn btn-outline-secondary">← Voltar ao Início</a>
+</div>
+
+<!-- KPIs Principais -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.total_pesquisas }}</h3>
+                <p class="mb-0 small">Total de Pesquisas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.respondidas }}</h3>
+                <p class="mb-0 small">Respondidas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.pendentes }}</h3>
+                <p class="mb-0 small">Pendentes</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.expiradas }}</h3>
+                <p class="mb-0 small">Expiradas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.taxa_resposta }}%</h3>
+                <p class="mb-0 small">Taxa de Resposta</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2">
+        <div class="card bg-secondary text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-1">{{ metricas.clientes_unicos }}</h3>
+                <p class="mb-0 small">Clientes Únicos</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Métricas por Produto e Agente -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">📊 Desempenho por Produto</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Total</th>
+                            <th>Respondidas</th>
+                            <th>Taxa</th>
+                            <th>Média Satisfação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for produto in metricas.por_produto %}
+                        <tr>
+                            <td>{{ produto.nome }}</td>
+                            <td>{{ produto.total }}</td>
+                            <td>{{ produto.respondidas }}</td>
+                            <td>
+                                <span class="badge bg-{% if produto.taxa >= 70 %}success{% elif produto.taxa >= 50 %}warning{% else %}danger{% endif %}">
+                                    {{ produto.taxa }}%
+                                </span>
+                            </td>
+                            <td>
+                                {% if produto.media_satisfacao %}
+                                    <span class="badge bg-{% if produto.media_satisfacao >= 4 %}success{% elif produto.media_satisfacao >= 3 %}warning{% else %}danger{% endif %}">
+                                        {{ produto.media_satisfacao }}/5
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">👥 Desempenho por Agente</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Agente</th>
+                            <th>Pesquisas</th>
+                            <th>Respondidas</th>
+                            <th>Taxa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for agente in metricas.por_agente %}
+                        <tr>
+                            <td>{{ agente.nome }}</td>
+                            <td>{{ agente.total }}</td>
+                            <td>{{ agente.respondidas }}</td>
+                            <td>
+                                <span class="badge bg-{% if agente.taxa >= 70 %}success{% elif agente.taxa >= 50 %}warning{% else %}danger{% endif %}">
+                                    {{ agente.taxa }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Evolução Temporal -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">📈 Evolução nos Últimos 30 Dias</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Período</th>
+                            <th>Criadas</th>
+                            <th>Respondidas</th>
+                            <th>Taxa</th>
+                            <th>Tendência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Esta semana</strong></td>
+                            <td>{{ metricas.esta_semana.criadas }}</td>
+                            <td>{{ metricas.esta_semana.respondidas }}</td>
+                            <td>{{ metricas.esta_semana.taxa }}%</td>
+                            <td>
+                                {% if metricas.esta_semana.taxa > metricas.semana_passada.taxa %}
+                                    <span class="text-success">↗️ +{{ "%.1f"|format(metricas.esta_semana.taxa - metricas.semana_passada.taxa) }}%</span>
+                                {% elif metricas.esta_semana.taxa < metricas.semana_passada.taxa %}
+                                    <span class="text-danger">↘️ {{ "%.1f"|format(metricas.esta_semana.taxa - metricas.semana_passada.taxa) }}%</span>
+                                {% else %}
+                                    <span class="text-muted">→ Estável</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Semana passada</td>
+                            <td>{{ metricas.semana_passada.criadas }}</td>
+                            <td>{{ metricas.semana_passada.respondidas }}</td>
+                            <td>{{ metricas.semana_passada.taxa }}%</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Este mês</strong></td>
+                            <td>{{ metricas.este_mes.criadas }}</td>
+                            <td>{{ metricas.este_mes.respondidas }}</td>
+                            <td>{{ metricas.este_mes.taxa }}%</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Mês passado</td>
+                            <td>{{ metricas.mes_passado.criadas }}</td>
+                            <td>{{ metricas.mes_passado.respondidas }}</td>
+                            <td>{{ metricas.mes_passado.taxa }}%</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">⚠️ Alertas</h5>
+            </div>
+            <div class="card-body">
+                {% if metricas.alertas %}
+                    {% for alerta in metricas.alertas %}
+                    <div class="alert alert-{{ alerta.tipo }} alert-sm">
+                        <small><strong>{{ alerta.titulo }}</strong><br>
+                        {{ alerta.mensagem }}</small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum alerta no momento</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pesquisas Recentes -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between">
+                <h5 class="mb-0">📋 Pesquisas Recentes</h5>
+                <small>Últimas 20 pesquisas</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Treinamento</th>
+                                <th>Produto</th>
+                                <th>Agente</th>
+                                <th>Status</th>
+                                <th>Criado</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pesquisa in pesquisas %}
+                            <tr>
+                                <td>
+                                    <strong>{{ pesquisa.nome_cliente }}</strong><br>
+                                    <small class="text-muted">{{ pesquisa.codigo_cliente }}</small>
+                                </td>
+                                <td>{{ pesquisa.nome_treinamento }}</td>
+                                <td>{{ pesquisa.tipo_produto or 'N/A' }}</td>
+                                <td>{{ pesquisa.agente_nome or 'N/A' }}</td>
+                                <td>
+                                    {% if pesquisa.status_pesquisa == 'respondida' %}
+                                        <span class="badge bg-success">Respondida</span>
+                                    {% elif pesquisa.status_pesquisa == 'ativa' %}
+                                        <span class="badge bg-warning">Ativa</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Expirada</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ pesquisa.created_at.strftime('%d/%m %H:%M') }}</td>
+                                <td>
+                                    <a href="/gestor/detalhes/{{ pesquisa.id }}" class="btn btn-sm btn-outline-primary">
+                                        👁️ Ver
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}

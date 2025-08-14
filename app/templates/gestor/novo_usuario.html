@@ -1,0 +1,240 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Novo Usuário{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">➕ Cadastrar Novo Usuário</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="nome" class="form-label">Nome Completo *</label>
+                                <input type="text" class="form-control" id="nome" name="nome" 
+                                       placeholder="Ex: João Silva" required minlength="3">
+                                <small class="form-text text-muted">Nome completo do usuário</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">E-mail *</label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       placeholder="Ex: joao@empresa.com" required>
+                                <small class="form-text text-muted">E-mail para login no sistema</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="senha" class="form-label">Senha *</label>
+                                <input type="password" class="form-control" id="senha" name="senha" 
+                                       required minlength="6">
+                                <small class="form-text text-muted">Mínimo de 6 caracteres</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="confirmar_senha" class="form-label">Confirmar Senha *</label>
+                                <input type="password" class="form-control" id="confirmar_senha" 
+                                       required minlength="6">
+                                <small class="form-text text-muted">Digite a senha novamente</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tipo_usuario" class="form-label">Tipo de Usuário *</label>
+                                <select class="form-control" id="tipo_usuario" name="tipo_usuario" required>
+                                    <option value="">Selecione o tipo...</option>
+                                    <option value="agente">Agente</option>
+                                    <option value="gestor">Gestor</option>
+                                </select>
+                                <small class="form-text text-muted">Define as permissões do usuário</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            ➕ Cadastrar Usuário
+                        </button>
+                        <a href="{{ url_for('gestor.usuarios') }}" class="btn btn-secondary">
+                            ❌ Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">👥 Tipos de Usuário</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-primary">🔵 Agente</h6>
+                    <ul class="list-unstyled small">
+                        <li>✅ Criar pesquisas de satisfação</li>
+                        <li>✅ Ver suas próprias pesquisas</li>
+                        <li>✅ Acompanhar métricas pessoais</li>
+                        <li>❌ Ver respostas dos clientes</li>
+                        <li>❌ Gerenciar outros usuários</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="text-success">🟢 Gestor</h6>
+                    <ul class="list-unstyled small">
+                        <li>✅ Todas as permissões do agente</li>
+                        <li>✅ Ver todas as pesquisas</li>
+                        <li>✅ Ver respostas dos clientes</li>
+                        <li>✅ Métricas gerais do sistema</li>
+                        <li>✅ Gerenciar usuários</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">⚠️ Dicas de Segurança</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small">
+                    <li>🔐 Use senhas fortes (min. 6 caracteres)</li>
+                    <li>📧 Verifique se o e-mail está correto</li>
+                    <li>👤 Escolha o tipo de usuário adequado</li>
+                    <li>🔄 Usuário pode alterar senha depois</li>
+                </ul>
+                
+                <div class="alert alert-warning alert-sm mt-3">
+                    <small>
+                        <strong>💡 Dica:</strong><br>
+                        Informe as credenciais ao novo usuário 
+                        e oriente-o a alterar a senha no primeiro login.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Validar se as senhas coincidem
+document.getElementById('confirmar_senha').addEventListener('input', function() {
+    const senha = document.getElementById('senha').value;
+    const confirmarSenha = this.value;
+    
+    if (senha !== confirmarSenha) {
+        this.setCustomValidity('As senhas não coincidem');
+        this.classList.add('is-invalid');
+    } else {
+        this.setCustomValidity('');
+        this.classList.remove('is-invalid');
+        this.classList.add('is-valid');
+    }
+});
+
+// Validar força da senha
+document.getElementById('senha').addEventListener('input', function() {
+    const senha = this.value;
+    let forca = 0;
+    
+    if (senha.length >= 6) forca++;
+    if (/[A-Z]/.test(senha)) forca++;
+    if (/[0-9]/.test(senha)) forca++;
+    if (/[^A-Za-z0-9]/.test(senha)) forca++;
+    
+    // Remover indicador anterior
+    const indicadorAnterior = document.getElementById('forca-senha');
+    if (indicadorAnterior) {
+        indicadorAnterior.remove();
+    }
+    
+    // Criar novo indicador
+    if (senha.length > 0) {
+        let cor = 'red';
+        let texto = 'Fraca';
+        
+        if (forca >= 2) {
+            cor = 'orange';
+            texto = 'Média';
+        }
+        if (forca >= 3) {
+            cor = 'green';
+            texto = 'Forte';
+        }
+        
+        const indicador = document.createElement('small');
+        indicador.id = 'forca-senha';
+        indicador.className = 'form-text';
+        indicador.innerHTML = `Força da senha: <span style="color: ${cor}; font-weight: bold;">${texto}</span>`;
+        this.parentNode.appendChild(indicador);
+    }
+});
+
+// Validação final do formulário
+document.querySelector('form').addEventListener('submit', function(e) {
+    const senha = document.getElementById('senha').value;
+    const confirmarSenha = document.getElementById('confirmar_senha').value;
+    
+    if (senha !== confirmarSenha) {
+        alert('As senhas não coincidem!');
+        e.preventDefault();
+        return;
+    }
+    
+    if (senha.length < 6) {
+        alert('A senha deve ter pelo menos 6 caracteres!');
+        e.preventDefault();
+        return;
+    }
+    
+    // Confirmar criação
+    const nome = document.getElementById('nome').value;
+    const tipo = document.getElementById('tipo_usuario').value;
+    
+    const confirmacao = confirm(`Confirma a criação do usuário "${nome}" como ${tipo}?`);
+    if (!confirmacao) {
+        e.preventDefault();
+    }
+});
+
+// Mostrar/ocultar informações baseado no tipo selecionado
+document.getElementById('tipo_usuario').addEventListener('change', function() {
+    const cards = document.querySelectorAll('.col-md-4 .card .card-body div');
+    const tipo = this.value;
+    
+    if (tipo === 'agente') {
+        // Destacar informações do agente
+        cards[0].style.backgroundColor = '#e3f2fd';
+        cards[1].style.backgroundColor = '';
+    } else if (tipo === 'gestor') {
+        // Destacar informações do gestor
+        cards[0].style.backgroundColor = '';
+        cards[1].style.backgroundColor = '#e8f5e8';
+    } else {
+        // Remover destaque
+        cards[0].style.backgroundColor = '';
+        cards[1].style.backgroundColor = '';
+    }
+});
+</script>
+{% endblock %}

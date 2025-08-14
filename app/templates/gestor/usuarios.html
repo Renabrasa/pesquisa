@@ -1,0 +1,218 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Gerenciar Usuários{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>👥 Gerenciar Usuários</h2>
+    <div>
+        <a href="{{ url_for('gestor.novo_usuario') }}" class="btn btn-success">
+            ➕ Novo Usuário
+        </a>
+        <a href="{{ url_for('gestor.dashboard') }}" class="btn btn-outline-secondary">
+            ← Voltar ao Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Resumo -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h4>{{ usuarios|length }}</h4>
+                <small>Total de Usuários</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h4>{{ usuarios|selectattr('tipo_usuario', 'equalto', 'agente')|list|length }}</h4>
+                <small>Agentes</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h4>{{ usuarios|selectattr('tipo_usuario', 'equalto', 'gestor')|list|length }}</h4>
+                <small>Gestores</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h4>{{ usuarios|selectattr('ativo', 'equalto', true)|list|length }}</h4>
+                <small>Ativos</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Usuários -->
+<div class="card">
+    <div class="card-header bg-dark text-white">
+        <h5 class="mb-0">Lista de Usuários</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>E-mail</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Pesquisas</th>
+                        <th>Respondidas</th>
+                        <th>Cadastrado</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for usuario in usuarios %}
+                    <tr>
+                        <td>
+                            <strong>{{ usuario.nome }}</strong>
+                        </td>
+                        <td>{{ usuario.email }}</td>
+                        <td>
+                            <span class="badge bg-{% if usuario.tipo_usuario == 'gestor' %}success{% else %}primary{% endif %}">
+                                {{ usuario.tipo_usuario.title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if usuario.ativo %}success{% else %}danger{% endif %}">
+                                {% if usuario.ativo %}Ativo{% else %}Inativo{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if usuario.tipo_usuario == 'agente' %}
+                                <span class="badge bg-secondary">{{ usuario.total_pesquisas or 0 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if usuario.tipo_usuario == 'agente' %}
+                                <span class="badge bg-success">{{ usuario.pesquisas_respondidas or 0 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ usuario.created_at.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('gestor.editar_usuario', user_id=usuario.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Editar">
+                                    ✏️
+                                </a>
+                                {% if usuario.id != session.user_id %}
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="confirmarDesativacao({{ usuario.id }}, '{{ usuario.nome }}')"
+                                        title="{% if usuario.ativo %}Desativar{% else %}Ativar{% endif %}">
+                                    {% if usuario.ativo %}🚫{% else %}✅{% endif %}
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% if not usuarios %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">
+                            Nenhum usuário encontrado
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Informações Adicionais -->
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">📋 Estatísticas dos Agentes</h6>
+            </div>
+            <div class="card-body">
+                {% set agentes = usuarios|selectattr('tipo_usuario', 'equalto', 'agente')|list %}
+                {% if agentes %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Agente</th>
+                                <th>Pesquisas Criadas</th>
+                                <th>Taxa de Resposta</th>
+                                <th>Performance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for agente in agentes %}
+                            {% set total = agente.total_pesquisas or 0 %}
+                            {% set respondidas = agente.pesquisas_respondidas or 0 %}
+                            {% set taxa = (respondidas * 100 / total) if total > 0 else 0 %}
+                            <tr>
+                                <td>{{ agente.nome }}</td>
+                                <td>{{ total }}</td>
+                                <td>{{ "%.1f"|format(taxa) }}%</td>
+                                <td>
+                                    {% if taxa >= 70 %}
+                                        <span class="badge bg-success">Excelente</span>
+                                    {% elif taxa >= 50 %}
+                                        <span class="badge bg-warning">Boa</span>
+                                    {% elif total > 0 %}
+                                        <span class="badge bg-danger">Precisa Melhorar</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Sem Dados</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Nenhum agente cadastrado</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">⚠️ Importante</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small">
+                    <li>• <strong>Agentes</strong> podem criar pesquisas e ver suas próprias métricas</li>
+                    <li>• <strong>Gestores</strong> têm acesso completo ao sistema</li>
+                    <li>• Usuários <strong>inativos</strong> não conseguem fazer login</li>
+                    <li>• Você não pode desativar seu próprio usuário</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarDesativacao(userId, nomeUsuario) {
+    const confirmacao = confirm(`Tem certeza que deseja alterar o status do usuário "${nomeUsuario}"?`);
+    if (confirmacao) {
+        // Aqui você poderia implementar uma rota para ativar/desativar usuário
+        // Por enquanto, apenas redireciona para edição
+        window.location.href = `/gestor/usuarios/editar/${userId}`;
+    }
+}
+</script>
+{% endblock %}

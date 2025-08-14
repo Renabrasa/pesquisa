@@ -1,0 +1,364 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Pesquisa de Satisfação{% endblock %}
+
+{% block nav_extra %}
+<span class="navbar-text">Pesquisa de Satisfação</span>
+{% endblock %}
+
+{% block content %}
+<style>
+.card-pesquisa {
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    border: none;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.header-pesquisa {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px 12px 0 0 !important;
+    padding: 1.5rem;
+    color: white;
+}
+
+.agente-info {
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 1rem;
+    backdrop-filter: blur(10px);
+}
+
+.agente-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    object-fit: cover;
+}
+
+.info-cliente {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #667eea;
+}
+
+.pergunta-item {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e9ecef;
+    transition: border-color 0.3s ease;
+}
+
+.pergunta-item:hover {
+    border-color: #667eea;
+}
+
+.form-control, .form-select {
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    transition: border-color 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.btn-enviar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 20px;
+    padding: 12px 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-enviar:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.emoji-btn {
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.emoji-btn:hover, .emoji-btn.active {
+    opacity: 1;
+    transform: scale(1.1);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+}
+</style>
+
+<div class="container py-3">
+    <div class="card card-pesquisa">
+        <!-- Header Compacto -->
+        <div class="header-pesquisa">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <img src="{{ pesquisa.agente_foto }}" alt="Consultor" class="agente-avatar">
+                </div>
+                <div class="col">
+                    <h5 class="mb-1">Pesquisa de Satisfação</h5>
+                    <div class="agente-info">
+                        <div class="row align-items-center">
+                            <div class="col-sm-8">
+                                <small><strong>{{ pesquisa.agente_nome or 'Seu Consultor' }}</strong></small><br>
+                                <small class="opacity-75">{{ pesquisa.tipo_produto }}</small>
+                            </div>
+                            <div class="col-sm-4 text-end">
+                                <small class="opacity-75">
+                                    <i class="fas fa-star"></i> Sua opinião importa!
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-3">
+            <!-- Info Cliente Compacta -->
+            <div class="info-cliente">
+                <div class="row small">
+                    <div class="col-sm-4">
+                        <strong>{{ pesquisa.nome_cliente }}</strong>
+                    </div>
+                    <div class="col-sm-8 text-muted">
+                        {{ pesquisa.nome_treinamento }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Progresso -->
+            <div class="mb-3">
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar" id="barra-progresso" style="width: 0%"></div>
+                </div>
+                <div class="d-flex justify-content-between mt-1">
+                    <small class="text-muted">
+                        <span id="progresso-atual">0</span>/{{ perguntas|length }}
+                    </small>
+                    <small class="text-muted">~2 minutos</small>
+                </div>
+            </div>
+
+            <!-- Formulário Compacto -->
+            <form action="/pesquisa/{{ pesquisa.uuid }}/enviar" method="POST" id="form-pesquisa">
+                {% for pergunta in perguntas %}
+                <div class="pergunta-item">
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold mb-1">
+                            {{ loop.index }}. {{ pergunta.texto }}
+                            {% if pergunta.obrigatoria %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                    </div>
+                    
+                    {% if pergunta.tipo_pergunta_id == 1 %}
+                        <!-- Texto Livre -->
+                        <textarea class="form-control form-control-sm pergunta-input" 
+                                  name="pergunta_{{ pergunta.id }}" 
+                                  rows="2"
+                                  placeholder="Sua resposta..."
+                                  {% if pergunta.obrigatoria %}required{% endif %}></textarea>
+                                  
+                    {% elif pergunta.tipo_pergunta_id == 3 %}
+                        <!-- Escala Numérica -->
+                        <div class="row align-items-center">
+                            <div class="col-9">
+                                <input type="range" 
+                                       class="form-range pergunta-input" 
+                                       name="pergunta_{{ pergunta.id }}" 
+                                       min="1" max="10" value="5"
+                                       id="range_{{ pergunta.id }}"
+                                       {% if pergunta.obrigatoria %}required{% endif %}>
+                                <div class="d-flex justify-content-between small text-muted">
+                                    <span>1</span><span>5</span><span>10</span>
+                                </div>
+                            </div>
+                            <div class="col-3 text-center">
+                                <span class="badge bg-primary" id="valor_{{ pergunta.id }}">5</span>
+                            </div>
+                        </div>
+                        
+                    {% elif pergunta.tipo_pergunta_id == 5 %}
+                        <!-- Escala de Satisfação com Emojis -->
+                        <div class="d-flex justify-content-between">
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Muito Insatisfeito" id="muito_insatisfeito_{{ pergunta.id }}"
+                                   {% if pergunta.obrigatoria %}required{% endif %}>
+                            <label class="emoji-btn" for="muito_insatisfeito_{{ pergunta.id }}" title="Muito Insatisfeito">
+                                😞
+                            </label>
+
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Insatisfeito" id="insatisfeito_{{ pergunta.id }}">
+                            <label class="emoji-btn" for="insatisfeito_{{ pergunta.id }}" title="Insatisfeito">
+                                😐
+                            </label>
+
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Neutro" id="neutro_{{ pergunta.id }}">
+                            <label class="emoji-btn" for="neutro_{{ pergunta.id }}" title="Neutro">
+                                😶
+                            </label>
+
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Satisfeito" id="satisfeito_{{ pergunta.id }}">
+                            <label class="emoji-btn" for="satisfeito_{{ pergunta.id }}" title="Satisfeito">
+                                😊
+                            </label>
+
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Muito Satisfeito" id="muito_satisfeito_{{ pergunta.id }}">
+                            <label class="emoji-btn" for="muito_satisfeito_{{ pergunta.id }}" title="Muito Satisfeito">
+                                😍
+                            </label>
+                        </div>
+                        
+                    {% elif pergunta.tipo_pergunta_id == 4 %}
+                        <!-- Sim/Não -->
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Sim" id="sim_{{ pergunta.id }}"
+                                   {% if pergunta.obrigatoria %}required{% endif %}>
+                            <label class="btn btn-outline-success btn-sm" for="sim_{{ pergunta.id }}">
+                                Sim
+                            </label>
+
+                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
+                                   value="Não" id="nao_{{ pergunta.id }}">
+                            <label class="btn btn-outline-secondary btn-sm" for="nao_{{ pergunta.id }}">
+                                Não
+                            </label>
+                        </div>
+                        
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                <!-- Botão de Envio -->
+                <div class="text-center mt-3">
+                    <button type="submit" class="btn btn-primary btn-enviar">
+                        <i class="fas fa-paper-plane me-1"></i>
+                        Enviar Respostas
+                    </button>
+                    <p class="mt-2 text-muted small mb-0">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Suas respostas são confidenciais
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<script>
+// Atualizar barra de progresso
+function atualizarProgresso() {
+    const totalPerguntas = {{ perguntas|length }};
+    let perguntasRespondidas = 0;
+    
+    // Contar perguntas respondidas
+    document.querySelectorAll('.pergunta-item').forEach(item => {
+        const inputs = item.querySelectorAll('.pergunta-input');
+        let respondida = false;
+        
+        inputs.forEach(input => {
+            if (input.type === 'radio' && input.checked) respondida = true;
+            if (input.type === 'range') respondida = true;
+            if ((input.type === 'text' || input.tagName === 'TEXTAREA') && input.value.trim()) respondida = true;
+        });
+        
+        if (respondida) perguntasRespondidas++;
+    });
+    
+    const progresso = Math.round((perguntasRespondidas / totalPerguntas) * 100);
+    
+    document.getElementById('barra-progresso').style.width = progresso + '%';
+    document.getElementById('progresso-atual').textContent = perguntasRespondidas;
+}
+
+// Atualizar valor do range slider
+document.querySelectorAll('input[type="range"]').forEach(slider => {
+    const id = slider.id.replace('range_', 'valor_');
+    const valorSpan = document.getElementById(id);
+    
+    slider.addEventListener('input', function() {
+        valorSpan.textContent = this.value;
+        atualizarProgresso();
+    });
+});
+
+// Ativar emoji buttons
+document.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        // Remover ativo de outros emojis do mesmo grupo
+        const name = this.previousElementSibling.name;
+        document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
+            input.nextElementSibling.classList.remove('active');
+        });
+        
+        // Ativar este emoji
+        this.classList.add('active');
+        atualizarProgresso();
+    });
+});
+
+// Monitorar mudanças em todos os inputs
+document.querySelectorAll('.pergunta-input').forEach(input => {
+    input.addEventListener('change', atualizarProgresso);
+    input.addEventListener('input', atualizarProgresso);
+});
+
+// Validação do formulário
+document.getElementById('form-pesquisa').addEventListener('submit', function(e) {
+    const perguntasObrigatorias = document.querySelectorAll('.pergunta-input[required]');
+    let todasRespondidas = true;
+    
+    perguntasObrigatorias.forEach(input => {
+        if (input.type === 'radio') {
+            const name = input.name;
+            const radiosGrupo = document.querySelectorAll(`input[name="${name}"]`);
+            const algumSelecionado = Array.from(radiosGrupo).some(radio => radio.checked);
+            if (!algumSelecionado) todasRespondidas = false;
+        } else if (!input.value.trim()) {
+            todasRespondidas = false;
+        }
+    });
+    
+    if (!todasRespondidas) {
+        e.preventDefault();
+        alert('Por favor, responda todas as perguntas obrigatórias antes de enviar.');
+        return;
+    }
+    
+    // Animação de envio
+    const btnEnviar = this.querySelector('.btn-enviar');
+    btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+    btnEnviar.disabled = true;
+});
+
+// Inicializar progresso
+atualizarProgresso();
+</script>
+{% endblock %}

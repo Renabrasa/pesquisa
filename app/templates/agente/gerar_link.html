@@ -1,0 +1,109 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Gerar Link - Agente{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Gerar Link de Pesquisa</h2>
+    <a href="/agente" class="btn btn-secondary">← Voltar</a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form id="formGerarLink">
+                    <div class="mb-3">
+                        <label class="form-label">Código do Cliente *</label>
+                        <input type="text" class="form-control" name="codigo_cliente" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome do Cliente *</label>
+                        <input type="text" class="form-control" name="nome_cliente" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome do Treinamento *</label>
+                        <input type="text" class="form-control" name="nome_treinamento" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Produto *</label>
+                        <select class="form-control" name="tipo_produto_id" required>
+                            <option value="">Selecione...</option>
+                            <option value="1">Servidor na Nuvem</option>
+                            <option value="2">Time is Money</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        🔗 Gerar Link
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6>📋 Instruções</h6>
+                <small>
+                    1. Preencha todos os campos obrigatórios<br>
+                    2. O link gerado expira em 48 horas<br>
+                    3. Envie o link para o cliente<br>
+                    4. Cliente pode responder apenas 1 vez
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="resultado" class="mt-4" style="display:none;">
+    <div class="alert alert-success">
+        <h5>✅ Link gerado com sucesso!</h5>
+        <div class="mb-2">
+            <strong>Link:</strong><br>
+            <div class="input-group">
+                <input type="text" id="linkGerado" class="form-control" readonly>
+                <button class="btn btn-outline-secondary" onclick="copiarLink()">📋 Copiar</button>
+            </div>
+        </div>
+        <p><strong>Expira em:</strong> <span id="dataExpiracao"></span></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('formGerarLink').onsubmit = function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData);
+    
+    fetch('/agente/gerar-link', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('linkGerado').value = data.link;
+            document.getElementById('dataExpiracao').textContent = data.expiracao;
+            document.getElementById('resultado').style.display = 'block';
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Erro ao gerar link: ' + error);
+    });
+};
+
+function copiarLink() {
+    const link = document.getElementById('linkGerado');
+    link.select();
+    document.execCommand('copy');
+    alert('Link copiado para a área de transferência!');
+}
+</script>
+{% endblock %}

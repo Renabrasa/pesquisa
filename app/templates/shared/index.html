@@ -1,0 +1,40 @@
+{% extends 'shared/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Sistema de Pesquisa de Satisfação</h1>
+        <p class="lead">Sistema para coleta de feedback de clientes sobre treinamentos e consultorias.</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">👤 Agente</h5>
+                <p class="card-text">Gerar links únicos de pesquisa para clientes</p>
+                <a href="/agente" class="btn btn-primary">Acessar Dashboard</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">📊 Gestor</h5>
+                <p class="card-text">Visualizar respostas e relatórios</p>
+                <a href="/gestor" class="btn btn-success">Acessar Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <div class="card bg-light">
+        <div class="card-body">
+            <h6>🔧 Link de Teste:</h6>
+            <a href="/teste-conexao" class="btn btn-sm btn-outline-info">Testar Conexão com Banco</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

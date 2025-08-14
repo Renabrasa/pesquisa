@@ -1,0 +1,145 @@
+{% extends 'shared/base.html' %}
+
+{% block title %}Meu Perfil{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">👤 Meu Perfil</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Nome:</strong></td>
+                                <td>{{ usuario.nome }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>E-mail:</strong></td>
+                                <td>{{ usuario.email }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tipo de Usuário:</strong></td>
+                                <td>
+                                    <span class="badge bg-{% if usuario.tipo_usuario == 'gestor' %}success{% else %}primary{% endif %}">
+                                        {{ usuario.tipo_usuario.title() }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>
+                                    <span class="badge bg-{% if usuario.ativo %}success{% else %}danger{% endif %}">
+                                        {% if usuario.ativo %}Ativo{% else %}Inativo{% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cadastrado em:</strong></td>
+                                <td>{{ usuario.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            </tr>
+                            {% if usuario.updated_at and usuario.updated_at != usuario.created_at %}
+                            <tr>
+                                <td><strong>Última atualização:</strong></td>
+                                <td>{{ usuario.updated_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        {% if usuario.tipo_usuario == 'agente' %}
+                        <h6 class="text-primary">📊 Estatísticas</h6>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h4 class="text-primary">{{ usuario.total_pesquisas or 0 }}</h4>
+                                        <small>Pesquisas Criadas</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h4 class="text-success">{{ usuario.pesquisas_respondidas or 0 }}</h4>
+                                        <small>Respondidas</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if usuario.ultima_pesquisa %}
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <strong>Última pesquisa:</strong><br>
+                                {{ usuario.ultima_pesquisa.strftime('%d/%m/%Y %H:%M') }}
+                            </small>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('auth.editar_perfil') }}" class="btn btn-primary">
+                        ✏️ Editar Perfil
+                    </a>
+                    <a href="{{ url_for('auth.alterar_senha') }}" class="btn btn-outline-secondary">
+                        🔑 Alterar Senha
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">ℹ️ Informações</h6>
+            </div>
+            <div class="card-body">
+                {% if usuario.tipo_usuario == 'agente' %}
+                <h6>Permissões do Agente:</h6>
+                <ul class="list-unstyled small">
+                    <li>✅ Criar pesquisas de satisfação</li>
+                    <li>✅ Visualizar suas próprias pesquisas</li>
+                    <li>✅ Acompanhar métricas pessoais</li>
+                    <li>❌ Ver respostas dos clientes</li>
+                    <li>❌ Acessar dados de outros agentes</li>
+                </ul>
+                {% else %}
+                <h6>Permissões do Gestor:</h6>
+                <ul class="list-unstyled small">
+                    <li>✅ Visualizar todas as pesquisas</li>
+                    <li>✅ Ver respostas dos clientes</li>
+                    <li>✅ Acessar métricas gerais</li>
+                    <li>✅ Gerenciar usuários</li>
+                    <li>✅ Relatórios completos</li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">🔒 Segurança</h6>
+            </div>
+            <div class="card-body">
+                <small>
+                    <strong>Dicas de Segurança:</strong><br>
+                    • Use senhas fortes (min. 6 caracteres)<br>
+                    • Não compartilhe suas credenciais<br>
+                    • Faça logout ao sair<br>
+                    • Altere sua senha regularmente
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
