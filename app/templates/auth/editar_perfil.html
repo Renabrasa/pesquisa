@@ -65,7 +65,63 @@
                             </div>
                         </div>
                     </div>
-                    
+                    {% if usuario.tipo_usuario == 'gestor' %}
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-4">
+                                <div class="card border-warning">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0">📧 Notificações de Email</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">
+                                            Configure quais alertas de clientes insatisfeitos você deseja receber por email:
+                                        </p>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                        id="alerta_time_is_money" name="alerta_time_is_money" 
+                                                        {% if usuario.alerta_time_is_money %}checked{% endif %}>
+                                                    <label class="form-check-label" for="alerta_time_is_money">
+                                                        <strong>Time is Money</strong>
+                                                    </label>
+                                                    <br><small class="text-muted">
+                                                        Receber alertas de insatisfação em treinamentos Time is Money
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                        id="alerta_servidor_nuvem" name="alerta_servidor_nuvem" 
+                                                        {% if usuario.alerta_servidor_nuvem %}checked{% endif %}>
+                                                    <label class="form-check-label" for="alerta_servidor_nuvem">
+                                                        <strong>Servidor na Nuvem</strong>
+                                                    </label>
+                                                    <br><small class="text-muted">
+                                                        Receber alertas de insatisfação em treinamentos Servidor na Nuvem
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="alert alert-info alert-sm mt-3">
+                                            <small>
+                                                <strong>ℹ️ Como funciona:</strong><br>
+                                                • Você receberá um email quando um cliente demonstrar insatisfação<br>
+                                                • O email será enviado para: <strong>{{ usuario.email }}</strong><br>
+                                                • Alertas são enviados em tempo real após a resposta do cliente
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                     <hr>
                     
                     <div class="d-flex gap-2">

@@ -106,6 +106,9 @@ def perfil():
     
     return render_template('auth/perfil.html', usuario=usuario)
 
+# SUBSTITUIR a função editar_perfil() no arquivo: app/routes/auth.py
+# Localizar a função atual e substituir por esta versão atualizada
+
 @bp.route('/perfil/editar', methods=['GET', 'POST'])
 @login_required
 def editar_perfil():
@@ -121,6 +124,14 @@ def editar_perfil():
         if execute_query(query_check, (email, user_id), fetch=True):
             flash('E-mail já está sendo usado por outro usuário!', 'error')
             return redirect(url_for('auth.editar_perfil'))
+        
+        # Processar configurações de alertas (apenas para gestores)
+        alerta_time_is_money = False
+        alerta_servidor_nuvem = False
+        
+        if session.get('user_type') == 'gestor':
+            alerta_time_is_money = 'alerta_time_is_money' in request.form
+            alerta_servidor_nuvem = 'alerta_servidor_nuvem' in request.form
         
         # Processar upload de foto
         foto_url = None
@@ -148,21 +159,25 @@ def editar_perfil():
                     flash(f'Erro ao processar foto: {str(e)}', 'error')
                     return redirect(url_for('auth.editar_perfil'))
         
-        # Atualizar dados
+        # Atualizar dados (incluindo alertas)
         if foto_url:
             query_update = """
             UPDATE usuarios 
-            SET nome = %s, email = %s, foto_url = %s, updated_at = CURRENT_TIMESTAMP
+            SET nome = %s, email = %s, foto_url = %s, 
+                alerta_time_is_money = %s, alerta_servidor_nuvem = %s,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
             """
-            params = (nome, email, foto_url, user_id)
+            params = (nome, email, foto_url, alerta_time_is_money, alerta_servidor_nuvem, user_id)
         else:
             query_update = """
             UPDATE usuarios 
-            SET nome = %s, email = %s, updated_at = CURRENT_TIMESTAMP
+            SET nome = %s, email = %s, 
+                alerta_time_is_money = %s, alerta_servidor_nuvem = %s,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
             """
-            params = (nome, email, user_id)
+            params = (nome, email, alerta_time_is_money, alerta_servidor_nuvem, user_id)
         
         result = execute_query(query_update, params)
         
@@ -178,8 +193,13 @@ def editar_perfil():
         else:
             flash('Erro ao atualizar perfil!', 'error')
     
-    # Buscar dados atuais
-    query = "SELECT * FROM usuarios WHERE id = %s"
+    # Buscar dados atuais (incluindo alertas)
+    query = """
+    SELECT id, nome, email, foto_url, tipo_usuario, created_at, updated_at,
+           alerta_time_is_money, alerta_servidor_nuvem
+    FROM usuarios 
+    WHERE id = %s
+    """
     result = execute_query(query, (user_id,), fetch=True)
     
     if not result:
