@@ -154,7 +154,8 @@ def dashboard():
     alertas = []
     
     # Alerta de baixa taxa de resposta
-    if metricas['taxa_resposta'] < 50:
+    if (metricas.get('taxa_resposta') or 0) < 50:
+
         alertas.append({
             'tipo': 'warning',
             'titulo': 'Taxa de Resposta Baixa',
