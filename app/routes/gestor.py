@@ -162,7 +162,7 @@ def dashboard():
             'mensagem': f'Taxa atual: {metricas["taxa_resposta"]}%. Considere revisar os links.'
         })
     
-    # Alerta de muitas pesquisas expiradas
+    # Alerta de muitas pesquisas expiradas##
     if metricas['expiradas'] > metricas['respondidas']:
         alertas.append({
             'tipo': 'danger',
