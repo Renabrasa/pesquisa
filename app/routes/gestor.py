@@ -163,7 +163,8 @@ def dashboard():
         })
     
     # Alerta de muitas pesquisas expiradas##
-    if metricas['expiradas'] > metricas['respondidas']:
+    if (metricas.get('expiradas') or 0) > (metricas.get('respondidas') or 0):
+
         alertas.append({
             'tipo': 'danger',
             'titulo': 'Muitas Expiradas',
@@ -171,7 +172,8 @@ def dashboard():
         })
     
     # Alerta de queda na performance
-    if esta_semana['taxa'] and semana_passada['taxa'] and esta_semana['taxa'] < semana_passada['taxa'] - 10:
+    if (esta_semana.get('taxa') or 0) and (semana_passada.get('taxa') or 0) and (esta_semana.get('taxa') or 0) < (semana_passada.get('taxa') or 0) - 10:
+
         alertas.append({
             'tipo': 'warning',
             'titulo': 'Queda na Performance',
