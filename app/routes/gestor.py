@@ -40,9 +40,11 @@ def dashboard():
         tp.nome,
         COUNT(p.id) as total,
         SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(p.id), 0), 1
+        COALESCE(
+            ROUND(
+                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
+                NULLIF(COUNT(p.id), 0), 1
+            ), 0
         ) as taxa,
         ROUND(AVG(
             CASE 

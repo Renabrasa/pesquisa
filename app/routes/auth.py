@@ -128,10 +128,12 @@ def editar_perfil():
         # Processar configurações de alertas (apenas para gestores)
         alerta_time_is_money = False
         alerta_servidor_nuvem = False
+        alerta_alterdata = False
         
         if session.get('user_type') == 'gestor':
             alerta_time_is_money = 'alerta_time_is_money' in request.form
             alerta_servidor_nuvem = 'alerta_servidor_nuvem' in request.form
+            alerta_alterdata = 'alerta_alterdata' in request.form
         
         # Processar upload de foto
         foto_url = None
@@ -164,21 +166,21 @@ def editar_perfil():
             query_update = """
             UPDATE usuarios 
             SET nome = %s, email = %s, foto_url = %s, 
-                alerta_time_is_money = %s, alerta_servidor_nuvem = %s,
+                alerta_time_is_money = %s, alerta_servidor_nuvem = %s, alerta_alterdata = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
             """
-            params = (nome, email, foto_url, alerta_time_is_money, alerta_servidor_nuvem, user_id)
+            params = (nome, email, foto_url, alerta_time_is_money, alerta_servidor_nuvem, alerta_alterdata, user_id)
         else:
             query_update = """
             UPDATE usuarios 
             SET nome = %s, email = %s, 
-                alerta_time_is_money = %s, alerta_servidor_nuvem = %s,
+                alerta_time_is_money = %s, alerta_servidor_nuvem = %s, alerta_alterdata = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
             """
-            params = (nome, email, alerta_time_is_money, alerta_servidor_nuvem, user_id)
-        
+            params = (nome, email, alerta_time_is_money, alerta_servidor_nuvem, alerta_alterdata, user_id)
+
         result = execute_query(query_update, params)
         
         if result:
@@ -196,7 +198,7 @@ def editar_perfil():
     # Buscar dados atuais (incluindo alertas)
     query = """
     SELECT id, nome, email, foto_url, tipo_usuario, created_at, updated_at,
-           alerta_time_is_money, alerta_servidor_nuvem
+           alerta_time_is_money, alerta_servidor_nuvem, alerta_alterdata
     FROM usuarios 
     WHERE id = %s
     """
