@@ -12,9 +12,9 @@
     <a href="/" class="btn btn-outline-secondary">← Voltar ao Início</a>
 </div>
 
-<!-- Cards de Métricas -->
+<!-- Cards de Métricas Principais -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card bg-primary text-white">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
@@ -30,7 +30,7 @@
         </div>
     </div>
     
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card bg-success text-white">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
@@ -42,11 +42,14 @@
                         <i class="fa fa-check fa-2x" style="opacity: 0.7;"></i>
                     </div>
                 </div>
+                <div class="mt-2">
+                    <small style="font-size: 10px; opacity: 0.8;">{{ metricas.taxa_resposta }}% taxa</small>
+                </div>
             </div>
         </div>
     </div>
     
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card bg-warning text-white">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
@@ -62,29 +65,82 @@
         </div>
     </div>
     
-    <div class="col-md-3">
+    <!-- NOVO KPI: FEEDBACK POSITIVO -->
+    <div class="col-md-2">
         <div class="card bg-info text-white">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h3 class="mb-1">{{ metricas.taxa_resposta }}%</h3>
-                        <p class="mb-0">Taxa de Resposta</p>
+                        <h3 class="mb-1">{{ metricas.feedback_positivo }}</h3>
+                        <p class="mb-0">Feedback Positivo</p>
                     </div>
                     <div class="align-self-center">
-                        <i class="fa fa-chart-line fa-2x" style="opacity: 0.7;"></i>
+                        <i class="fa fa-thumbs-up fa-2x" style="opacity: 0.7;"></i>
                     </div>
+                </div>
+                <div class="mt-2">
+                    <small style="font-size: 10px; opacity: 0.8;">{{ metricas.percentual_positivo }}% do total</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- NOVO KPI: FEEDBACK NEGATIVO -->
+    <div class="col-md-2">
+        <div class="card {% if metricas.percentual_negativo > 20 %}bg-danger{% elif metricas.percentual_negativo > 10 %}bg-warning{% else %}bg-secondary{% endif %} text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3 class="mb-1">{{ metricas.feedback_negativo }}</h3>
+                        <p class="mb-0">Feedback Negativo</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-thumbs-down fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small style="font-size: 10px; opacity: 0.8;">{{ metricas.percentual_negativo }}% do total</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- NOVO KPI: ÍNDICE DE SATISFAÇÃO -->
+    <div class="col-md-2">
+        <div class="card 
+            {% if metricas.percentual_negativo <= 5 %}bg-success
+            {% elif metricas.percentual_negativo <= 15 %}bg-warning
+            {% else %}bg-danger{% endif %} text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        {% set satisfacao = 100 - metricas.percentual_negativo %}
+                        <h3 class="mb-1">{{ satisfacao }}%</h3>
+                        <p class="mb-0">Índice de Satisfação</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fa fa-star fa-2x" style="opacity: 0.7;"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small style="font-size: 10px; opacity: 0.8;">
+                        {% if satisfacao >= 95 %}⭐ Excelente
+                        {% elif satisfacao >= 85 %}👍 Bom
+                        {% elif satisfacao >= 70 %}⚠️ Regular
+                        {% else %}🚨 Crítico{% endif %}
+                    </small>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Métricas por Produto -->
+<!-- NOVO: Seção de Análise de Feedback -->
 <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-8">
         <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">📊 Por Tipo de Produto</h5>
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">📊 Análise de Feedback por Produto</h5>
             </div>
             <div class="card-body">
                 <table class="table table-sm">
@@ -94,15 +150,43 @@
                             <th>Total</th>
                             <th>Respondidas</th>
                             <th>Taxa</th>
+                            <th>Positivos</th>
+                            <th>Negativos</th>
+                            <th>% Negativo</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for produto in metricas.por_produto %}
                         <tr>
-                            <td>{{ produto.nome }}</td>
-                            <td>{{ produto.total }}</td>
-                            <td>{{ produto.respondidas }}</td>
-                            <td>{{ produto.taxa }}%</td>
+                            <td><strong>{{ produto.nome }}</strong></td>
+                            <td>{{ produto.total or 0 }}</td>
+                            <td>{{ produto.respondidas or 0 }}</td>
+                            <td>
+                                <span class="badge bg-{% if produto.taxa >= 70 %}success{% elif produto.taxa >= 50 %}warning{% else %}danger{% endif %}">
+                                    {{ produto.taxa or 0 }}%
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">{{ produto.positivos or 0 }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-danger">{{ produto.negativos or 0 }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if produto.percentual_negativo_produto <= 10 %}success{% elif produto.percentual_negativo_produto <= 20 %}warning{% else %}danger{% endif %}">
+                                    {{ produto.percentual_negativo_produto or 0 }}%
+                                </span>
+                            </td>
+                            <td>
+                                {% if produto.percentual_negativo_produto <= 10 %}
+                                    <span class="text-success">✅ Excelente</span>
+                                {% elif produto.percentual_negativo_produto <= 20 %}
+                                    <span class="text-warning">⚠️ Atenção</span>
+                                {% else %}
+                                    <span class="text-danger">🚨 Crítico</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -111,10 +195,37 @@
         </div>
     </div>
     
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">📈 Últimos 30 Dias</h5>
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">⚠️ Alertas Pessoais</h5>
+            </div>
+            <div class="card-body">
+                {% if metricas.alertas %}
+                    {% for alerta in metricas.alertas %}
+                    <div class="alert alert-{{ alerta.tipo }} alert-sm mb-2">
+                        <small><strong>{{ alerta.titulo }}</strong><br>
+                        {{ alerta.mensagem }}</small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-success">
+                        <h6>🎉 Parabéns!</h6>
+                        <p class="mb-0">Seu desempenho está excelente!</p>
+                        <small>Nenhum alerta no momento</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Evolução Temporal com Feedback -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">📈 Evolução do Feedback</h5>
             </div>
             <div class="card-body">
                 <table class="table table-sm">
@@ -123,23 +234,59 @@
                             <th>Período</th>
                             <th>Criadas</th>
                             <th>Respondidas</th>
+                            <th>Feedback Negativo</th>
+                            <th>% Negativo</th>
+                            <th>Tendência</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Esta semana</td>
-                            <td>{{ metricas.esta_semana.criadas }}</td>
-                            <td>{{ metricas.esta_semana.respondidas }}</td>
+                            <td><strong>Esta semana</strong></td>
+                            <td>{{ metricas.esta_semana.criadas or 0 }}</td>
+                            <td>{{ metricas.esta_semana.respondidas or 0 }}</td>
+                            <td>{{ metricas.esta_semana.negativos or 0 }}</td>
+                            <td>
+                                <span class="badge bg-{% if metricas.esta_semana.percentual_negativo_semana <= 10 %}success{% elif metricas.esta_semana.percentual_negativo_semana <= 20 %}warning{% else %}danger{% endif %}">
+                                    {{ metricas.esta_semana.percentual_negativo_semana or 0 }}%
+                                </span>
+                            </td>
+                            <td>
+                                {% if metricas.esta_semana.percentual_negativo_semana and metricas.semana_passada.percentual_negativo_semana %}
+                                    {% if metricas.esta_semana.percentual_negativo_semana < metricas.semana_passada.percentual_negativo_semana %}
+                                        <span class="text-success">📈 Melhorou</span>
+                                    {% elif metricas.esta_semana.percentual_negativo_semana > metricas.semana_passada.percentual_negativo_semana %}
+                                        <span class="text-danger">📉 Piorou</span>
+                                    {% else %}
+                                        <span class="text-muted">➡️ Estável</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <td>Semana passada</td>
-                            <td>{{ metricas.semana_passada.criadas }}</td>
-                            <td>{{ metricas.semana_passada.respondidas }}</td>
+                            <td>{{ metricas.semana_passada.criadas or 0 }}</td>
+                            <td>{{ metricas.semana_passada.respondidas or 0 }}</td>
+                            <td>{{ metricas.semana_passada.negativos or 0 }}</td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {{ metricas.semana_passada.percentual_negativo_semana or 0 }}%
+                                </span>
+                            </td>
+                            <td>-</td>
                         </tr>
                         <tr>
-                            <td>Este mês</td>
-                            <td>{{ metricas.este_mes.criadas }}</td>
-                            <td>{{ metricas.este_mes.respondidas }}</td>
+                            <td><strong>Este mês</strong></td>
+                            <td>{{ metricas.este_mes.criadas or 0 }}</td>
+                            <td>{{ metricas.este_mes.respondidas or 0 }}</td>
+                            <td>{{ metricas.este_mes.negativos or 0 }}</td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ metricas.este_mes.percentual_negativo_semana or 0 }}%
+                                </span>
+                            </td>
+                            <td>-</td>
                         </tr>
                     </tbody>
                 </table>
@@ -149,7 +296,7 @@
 </div>
 
 <!-- Ação Principal -->
-<div class="row">
+<div class="row mb-4">
     <div class="col-md-8">
         <div class="card">
             <div class="card-body text-center">
@@ -165,22 +312,24 @@
     <div class="col-md-4">
         <div class="card bg-light">
             <div class="card-body">
-                <h6>ℹ️ Informações</h6>
-                <ul class="mb-0">
-                    <li>Links expiram em 48 horas</li>
-                    <li>Cliente responde apenas 1 vez</li>
-                    <li>Métricas atualizadas em tempo real</li>
+                <h6>💡 Dicas para Melhorar o Feedback</h6>
+                <ul class="mb-0 small">
+                    <li>🎯 Seja claro nas explicações</li>
+                    <li>🤝 Mantenha contato próximo</li>
+                    <li>📞 Faça follow-up após treinamento</li>
+                    <li>💬 Peça feedback durante o processo</li>
+                    <li>🔄 Adapte-se às necessidades do cliente</li>
                 </ul>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Últimas Pesquisas -->
-<div class="row mt-4">
+<!-- Últimas Pesquisas com Status de Feedback -->
+<div class="row">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header bg-dark text-white">
                 <h5 class="mb-0">📋 Suas Últimas Pesquisas</h5>
             </div>
             <div class="card-body">
@@ -192,20 +341,44 @@
                                 <th>Treinamento</th>
                                 <th>Produto</th>
                                 <th>Status</th>
+                                <th>Feedback</th>
                                 <th>Criado em</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for pesquisa in ultimas_pesquisas %}
-                            <tr>
-                                <td>{{ pesquisa.nome_cliente }}</td>
+                            <tr {% if pesquisa.sentimento == 'negative' %}class="table-warning"{% endif %}>
+                                <td>
+                                    <strong>{{ pesquisa.nome_cliente }}</strong><br>
+                                    <small class="text-muted">{{ pesquisa.codigo_cliente }}</small>
+                                </td>
                                 <td>{{ pesquisa.nome_treinamento }}</td>
                                 <td>{{ pesquisa.tipo_produto }}</td>
                                 <td>
-                                    {% if pesquisa.respondida %}
+                                    {% if pesquisa.status_pesquisa == 'respondida' %}
                                         <span class="badge bg-success">Respondida</span>
+                                    {% elif pesquisa.status_pesquisa == 'ativa' %}
+                                        <span class="badge bg-warning">Ativa</span>
                                     {% else %}
-                                        <span class="badge bg-warning">Pendente</span>
+                                        <span class="badge bg-danger">Expirada</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if pesquisa.sentimento == 'positive' %}
+                                        <span class="badge bg-success">😊 Positivo</span>
+                                    {% elif pesquisa.sentimento == 'negative' %}
+                                        <span class="badge bg-danger">😞 Negativo</span>
+                                        {% if pesquisa.motivo_insatisfacao %}
+                                            <br><small class="text-danger" title="{{ pesquisa.motivo_insatisfacao }}">
+                                                {{ pesquisa.motivo_insatisfacao[:50] }}{% if pesquisa.motivo_insatisfacao|length > 50 %}...{% endif %}
+                                            </small>
+                                        {% endif %}
+                                    {% elif pesquisa.sentimento == 'neutral' %}
+                                        <span class="badge bg-secondary">😐 Neutro</span>
+                                    {% elif pesquisa.respondida %}
+                                        <span class="badge bg-info">🔄 Analisando</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ pesquisa.created_at.strftime('%d/%m/%Y') }}</td>
@@ -218,6 +391,137 @@
         </div>
     </div>
 </div>
+
+<!-- NOVO: Seção de Recomendações Baseadas no Desempenho -->
+{% if metricas.percentual_negativo > 15 %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-warning">
+            <h5 class="alert-heading">📚 Plano de Melhoria Sugerido</h5>
+            <p>Com base no seu percentual de feedback negativo ({{ metricas.percentual_negativo }}%), sugerimos:</p>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>🎯 Ações Imediatas:</h6>
+                    <ul>
+                        <li>Entre em contato com clientes insatisfeitos</li>
+                        <li>Solicite feedback detalhado sobre pontos de melhoria</li>
+                        <li>Revise o material de treinamento</li>
+                        <li>Adapte a metodologia conforme necessário</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>🔄 Melhorias Contínuas:</h6>
+                    <ul>
+                        <li>Faça check-ins durante os treinamentos</li>
+                        <li>Prepare exemplos mais práticos</li>
+                        <li>Solicite mentoria com gestores</li>
+                        <li>Participe de treinamentos de capacitação</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% elif metricas.percentual_negativo == 0 and metricas.pesquisas_respondidas > 5 %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-success">
+            <h5 class="alert-heading">🏆 Excelente Desempenho!</h5>
+            <p>Parabéns! Você está com 0% de feedback negativo em {{ metricas.pesquisas_respondidas }} pesquisas respondidas.</p>
+            <hr>
+            <p class="mb-0">Continue assim! Você é um exemplo para a equipe. 🌟</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+/* Estilos específicos para o dashboard do agente */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.table-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.alert-sm {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.alert-sm small {
+    font-size: 11px;
+}
+
+/* Animação para cards de feedback negativo */
+.bg-danger {
+    animation: pulse-red 3s infinite;
+}
+
+@keyframes pulse-red {
+    0% { 
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+    }
+    70% { 
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% { 
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+</style>
+
+<script>
+// JavaScript específico para o dashboard do agente
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Dashboard do Agente carregado!');
+    
+    // Destacar métricas importantes
+    const percentualNegativo = {{ metricas.percentual_negativo }};
+    
+    if (percentualNegativo > 20) {
+        console.log('🚨 Alto percentual de feedback negativo detectado:', percentualNegativo + '%');
+    } else if (percentualNegativo === 0) {
+        console.log('🏆 Excelente! Nenhum feedback negativo!');
+    }
+    
+    // Tooltip para motivos de insatisfação
+    const tooltips = document.querySelectorAll('[title]');
+    tooltips.forEach(element => {
+        element.style.cursor = 'help';
+    });
+});
+
+// Função para focar em melhoria
+function verDicasMelhoria() {
+    const percentualNegativo = {{ metricas.percentual_negativo }};
+    
+    if (percentualNegativo > 15) {
+        alert('📚 Dicas de Melhoria:\n\n' +
+              '1. Entre em contato com clientes insatisfeitos\n' +
+              '2. Solicite feedback específico\n' +
+              '3. Revise metodologia de treinamento\n' +
+              '4. Busque mentoria com gestores\n' +
+              '5. Adapte exemplos às necessidades do cliente');
+    } else {
+        alert('🎉 Parabéns! Seu desempenho está excelente!\n\n' +
+              'Continue assim e mantenha o foco na qualidade dos treinamentos.');
+    }
+}
+</script>
+
 {% endblock %}
 
 {% block scripts %}

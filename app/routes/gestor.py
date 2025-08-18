@@ -13,29 +13,77 @@ def hash_password(password):
 @bp.route('/')
 @gestor_required
 def dashboard():
-    # Métricas gerais (todas as pesquisas)
-    query_metricas = """
+    # Capturar filtros da URL
+    data_inicio = request.args.get('data_inicio')
+    data_fim = request.args.get('data_fim')
+    busca = request.args.get('busca', '').strip()
+    print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}'")
+    
+    # Construir condições WHERE baseadas nos filtros
+    condicoes_where = []
+    params_base = []
+    
+    # Filtro de data
+    if data_inicio:
+        condicoes_where.append("DATE(p.created_at) >= %s")
+        params_base.append(data_inicio)
+    
+    if data_fim:
+        condicoes_where.append("DATE(p.created_at) <= %s")
+        params_base.append(data_fim)
+    
+    # Filtro de busca (código, cliente, treinamento, agente)
+    if busca:
+        condicoes_where.append("""(
+            p.codigo_cliente LIKE %s OR 
+            p.nome_cliente LIKE %s OR 
+            p.nome_treinamento LIKE %s OR 
+            u.nome LIKE %s
+        )""")
+        busca_param = f"%{busca}%"
+        params_base.extend([busca_param, busca_param, busca_param, busca_param])
+    
+    # Montar cláusula WHERE
+    where_clause = " AND ".join(condicoes_where) if condicoes_where else "1=1"
+    
+    # === MÉTRICAS GERAIS COM FILTROS ===
+    query_metricas = f"""
     SELECT 
         COUNT(*) as total_pesquisas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        SUM(CASE WHEN respondida = FALSE AND data_expiracao > NOW() THEN 1 ELSE 0 END) as pendentes,
-        SUM(CASE WHEN respondida = FALSE AND data_expiracao <= NOW() THEN 1 ELSE 0 END) as expiradas,
+        SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+        SUM(CASE WHEN p.respondida = FALSE AND p.data_expiracao > NOW() THEN 1 ELSE 0 END) as pendentes,
+        SUM(CASE WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 1 ELSE 0 END) as expiradas,
         ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
+            (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(COUNT(*), 0), 1
         ) as taxa_resposta,
-        COUNT(DISTINCT codigo_cliente) as clientes_unicos
-    FROM pesquisas
+        COUNT(DISTINCT p.codigo_cliente) as clientes_unicos,
+        -- NOVO KPI: Atendimentos mal avaliados
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as mal_avaliados,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_mal_avaliados
+    FROM pesquisas p
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE {where_clause}
     """
     
-    metricas_result = execute_query(query_metricas, fetch=True)
+    metricas_result = execute_query(query_metricas, params_base, fetch=True)
     metricas = metricas_result[0] if metricas_result else {
         'total_pesquisas': 0, 'respondidas': 0, 'pendentes': 0, 
-        'expiradas': 0, 'taxa_resposta': 0, 'clientes_unicos': 0
+        'expiradas': 0, 'taxa_resposta': 0, 'clientes_unicos': 0,
+        'mal_avaliados': 0, 'percentual_mal_avaliados': 0
     }
     
-    # Métricas por produto
-    query_por_produto = """
+    # Garantir que valores não sejam None
+    for key in metricas:
+        if metricas[key] is None:
+            metricas[key] = 0
+    
+    # === MÉTRICAS POR PRODUTO COM FILTROS ===
+    query_por_produto = f"""
     SELECT 
         tp.nome,
         COUNT(p.id) as total,
@@ -55,18 +103,22 @@ def dashboard():
                 WHEN r.resposta_texto = 'Muito Insatisfeito' THEN 1
                 ELSE NULL
             END
-        ), 1) as media_satisfacao
+        ), 1) as media_satisfacao,
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos
     FROM tipos_produtos tp
     LEFT JOIN pesquisas p ON tp.id = p.tipo_produto_id
+    LEFT JOIN usuarios u ON p.agente_id = u.id
     LEFT JOIN respostas r ON p.id = r.pesquisa_id AND r.resposta_texto IN ('Muito Satisfeito', 'Satisfeito', 'Neutro', 'Insatisfeito', 'Muito Insatisfeito')
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE p.id IS NULL OR ({where_clause})
     GROUP BY tp.id, tp.nome
     ORDER BY tp.nome
     """
     
-    por_produto = execute_query(query_por_produto, fetch=True) or []
+    por_produto = execute_query(query_por_produto, params_base, fetch=True) or []
     
-    # Métricas por agente
-    query_por_agente = """
+    # === MÉTRICAS POR AGENTE COM FILTROS ===
+    query_por_agente = f"""
     SELECT 
         COALESCE(u.nome, 'Agente Desconhecido') as nome,
         COUNT(p.id) as total,
@@ -74,113 +126,230 @@ def dashboard():
         ROUND(
             (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(COUNT(p.id), 0), 1
-        ) as taxa
+        ) as taxa,
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos
     FROM pesquisas p
     LEFT JOIN usuarios u ON p.agente_id = u.id
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE {where_clause}
     GROUP BY p.agente_id, u.nome
+    HAVING COUNT(p.id) > 0
     ORDER BY total DESC
     """
     
-    por_agente = execute_query(query_por_agente, fetch=True) or []
+    por_agente = execute_query(query_por_agente, params_base, fetch=True) or []
     
-    # Métricas temporais
-    query_esta_semana = """
-    SELECT 
-        COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(*), 0), 1
-        ) as taxa
-    FROM pesquisas 
-    WHERE YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1)
-    """
+    # === MÉTRICAS TEMPORAIS COM FILTROS ===
+    if data_inicio and data_fim:
+        # Com filtro: comparar primeira metade vs segunda metade do período
+        query_periodo_1 = f"""
+        SELECT 
+            COUNT(*) as criadas,
+            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+            ROUND(
+                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
+                NULLIF(COUNT(*), 0), 1
+            ) as taxa
+        FROM pesquisas p
+        LEFT JOIN usuarios u ON p.agente_id = u.id
+        WHERE DATE(p.created_at) >= %s AND DATE(p.created_at) <= %s
+        """
+        
+        # Calcular meio período
+        from datetime import datetime, timedelta
+        inicio = datetime.strptime(data_inicio, '%Y-%m-%d')
+        fim = datetime.strptime(data_fim, '%Y-%m-%d')
+        meio = inicio + (fim - inicio) / 2
+        meio_str = meio.strftime('%Y-%m-%d')
+        
+        params_busca_periodo = params_base[2:] if busca else []
+        
+        periodo_1_params = [data_inicio, meio_str] + params_busca_periodo
+        periodo_2_params = [meio_str, data_fim] + params_busca_periodo
+        
+        if busca:
+            query_periodo_1 += f" AND ({condicoes_where[2]})"
+            query_periodo_2 = query_periodo_1.replace(data_inicio, meio_str).replace(meio_str, data_fim)
+        else:
+            query_periodo_2 = query_periodo_1.replace(data_inicio, meio_str).replace(meio_str, data_fim)
+        
+        esta_semana_result = execute_query(query_periodo_1, periodo_1_params, fetch=True)
+        semana_passada_result = execute_query(query_periodo_2, periodo_2_params, fetch=True)
+        
+        este_mes = esta_semana_result[0] if esta_semana_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+        mes_passado = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+        
+    else:
+        # Sem filtro: usar períodos relativos normais
+        query_esta_semana = f"""
+        SELECT 
+            COUNT(*) as criadas,
+            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+            ROUND(
+                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
+                NULLIF(COUNT(*), 0), 1
+            ) as taxa
+        FROM pesquisas p
+        LEFT JOIN usuarios u ON p.agente_id = u.id
+        WHERE YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)
+        """ + (f" AND ({condicoes_where[0]})" if busca else "")
+        
+        query_semana_passada = query_esta_semana.replace("YEARWEEK(CURDATE(), 1)", "YEARWEEK(CURDATE(), 1) - 1")
+        query_este_mes = query_esta_semana.replace("YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)", 
+                                                  "YEAR(p.created_at) = YEAR(CURDATE()) AND MONTH(p.created_at) = MONTH(CURDATE())")
+        query_mes_passado = query_este_mes.replace("MONTH(CURDATE())", "MONTH(CURDATE() - INTERVAL 1 MONTH)").replace("YEAR(CURDATE())", "YEAR(CURDATE() - INTERVAL 1 MONTH)")
+        
+        params_busca = [busca_param, busca_param, busca_param, busca_param] if busca else []
+        
+        esta_semana_result = execute_query(query_esta_semana, params_busca, fetch=True)
+        semana_passada_result = execute_query(query_semana_passada, params_busca, fetch=True)
+        este_mes_result = execute_query(query_este_mes, params_busca, fetch=True)
+        mes_passado_result = execute_query(query_mes_passado, params_busca, fetch=True)
+        
+        este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+        mes_passado = mes_passado_result[0] if mes_passado_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
     
-    query_semana_passada = """
-    SELECT 
-        COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(*), 0), 1
-        ) as taxa
-    FROM pesquisas 
-    WHERE YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1) - 1
-    """
-    
-    query_este_mes = """
-    SELECT 
-        COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(*), 0), 1
-        ) as taxa
-    FROM pesquisas 
-    WHERE YEAR(created_at) = YEAR(CURDATE()) 
-    AND MONTH(created_at) = MONTH(CURDATE())
-    """
-    
-    query_mes_passado = """
-    SELECT 
-        COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(*), 0), 1
-        ) as taxa
-    FROM pesquisas 
-    WHERE YEAR(created_at) = YEAR(CURDATE() - INTERVAL 1 MONTH) 
-    AND MONTH(created_at) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-    """
-    
-    esta_semana_result = execute_query(query_esta_semana, fetch=True)
     esta_semana = esta_semana_result[0] if esta_semana_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-    esta_semana = {k: v or 0 for k, v in esta_semana.items()}
-    
-    semana_passada_result = execute_query(query_semana_passada, fetch=True)
     semana_passada = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-    semana_passada = {k: v or 0 for k, v in semana_passada.items()}
     
-    este_mes_result = execute_query(query_este_mes, fetch=True)
-    este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-    este_mes = {k: v or 0 for k, v in este_mes.items()}
+    # Garantir que valores não sejam None
+    for periodo in [esta_semana, semana_passada, este_mes, mes_passado]:
+        for key in periodo:
+            if periodo[key] is None:
+                periodo[key] = 0
     
-    mes_passado_result = execute_query(query_mes_passado, fetch=True)
-    mes_passado = mes_passado_result[0] if mes_passado_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-    mes_passado = {k: v or 0 for k, v in mes_passado.items()}
+    # === NOVA FUNCIONALIDADE: PESQUISAS PENDENTES ===
+    query_pendentes = f"""
+    SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
+           TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) as horas_restantes,
+           CASE 
+               WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 6 THEN 'critico'
+               WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 24 THEN 'atencao'
+               ELSE 'normal'
+           END as urgencia
+    FROM pesquisas p
+    LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    WHERE p.respondida = FALSE 
+    AND p.data_expiracao > NOW()
+    AND ({where_clause})
+    ORDER BY p.data_expiracao ASC
+    LIMIT 15
+    """
     
-    # Gerar alertas
+    # Ajustar parâmetros para query de pendentes
+    params_pendentes = params_base if where_clause != "1=1" else []
+    pesquisas_pendentes = execute_query(query_pendentes, params_pendentes, fetch=True) or []
+    
+    # === ESTATÍSTICAS DE PESQUISAS PENDENTES ===
+    query_stats_pendentes = f"""
+    SELECT 
+        COUNT(*) as total_pendentes,
+        SUM(CASE WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 6 THEN 1 ELSE 0 END) as criticas,
+        SUM(CASE WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 24 THEN 1 ELSE 0 END) as atencao,
+        AVG(TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)) as media_horas_restantes
+    FROM pesquisas p
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    WHERE p.respondida = FALSE 
+    AND p.data_expiracao > NOW()
+    AND ({where_clause})
+    """
+    
+    stats_pendentes_result = execute_query(query_stats_pendentes, params_pendentes, fetch=True)
+    stats_pendentes = stats_pendentes_result[0] if stats_pendentes_result else {
+        'total_pendentes': 0, 'criticas': 0, 'atencao': 0, 'media_horas_restantes': 0
+    }
+    
+    # Garantir que valores não sejam None
+    for key in stats_pendentes:
+        if stats_pendentes[key] is None:
+            stats_pendentes[key] = 0
+    
+    # === GERAR ALERTAS ===
     alertas = []
     
     # Alerta de baixa taxa de resposta
     if (metricas.get('taxa_resposta') or 0) < 50:
-
         alertas.append({
             'tipo': 'warning',
             'titulo': 'Taxa de Resposta Baixa',
             'mensagem': f'Taxa atual: {metricas["taxa_resposta"]}%. Considere revisar os links.'
         })
     
-    # Alerta de muitas pesquisas expiradas##
+    # Alerta de muitas pesquisas expiradas
     if (metricas.get('expiradas') or 0) > (metricas.get('respondidas') or 0):
-
         alertas.append({
             'tipo': 'danger',
             'titulo': 'Muitas Expiradas',
             'mensagem': f'{metricas["expiradas"]} pesquisas expiraram sem resposta.'
         })
     
+    # NOVO ALERTA: Alto percentual de insatisfação
+    if (metricas.get('percentual_mal_avaliados') or 0) > 15:
+        alertas.append({
+            'tipo': 'danger',
+            'titulo': 'Alto Índice de Insatisfação',
+            'mensagem': f'{metricas["percentual_mal_avaliados"]}% dos atendimentos foram mal avaliados.'
+        })
+    
+    # NOVO ALERTA: Pesquisas críticas
+    if (stats_pendentes.get('criticas') or 0) > 0:
+        alertas.append({
+            'tipo': 'danger',
+            'titulo': 'Pesquisas Expirando',
+            'mensagem': f'{stats_pendentes["criticas"]} pesquisa(s) expira(m) em menos de 6 horas!'
+        })
+    elif (stats_pendentes.get('atencao') or 0) > 3:
+        alertas.append({
+            'tipo': 'warning',
+            'titulo': 'Muitas Pesquisas Pendentes',
+            'mensagem': f'{stats_pendentes["atencao"]} pesquisa(s) expira(m) nas próximas 24 horas.'
+        })
+    
     # Alerta de queda na performance
     if (esta_semana.get('taxa') or 0) and (semana_passada.get('taxa') or 0) and (esta_semana.get('taxa') or 0) < (semana_passada.get('taxa') or 0) - 10:
-
         alertas.append({
             'tipo': 'warning',
             'titulo': 'Queda na Performance',
-            'mensagem': f'Taxa caiu {semana_passada["taxa"] - esta_semana["taxa"]:.1f}% esta semana.'
+            'mensagem': f'Taxa caiu {semana_passada["taxa"] - esta_semana["taxa"]:.1f}% em relação ao período anterior.'
         })
     
-    # Organizar métricas
+    # === PESQUISAS RECENTES COM STATUS CORRIGIDO ===
+    query_pesquisas = f"""
+    SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
+           -- LÓGICA DE STATUS CORRIGIDA
+           CASE 
+               WHEN p.respondida = TRUE THEN 'respondida'
+               WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 'expirada'
+               ELSE 'ativa'
+           END as status_pesquisa,
+           -- Dados de sentimento
+           as_sent.sentimento,
+           as_sent.pontuacao_hibrida,
+           as_sent.confianca,
+           -- Dados de ações
+           ai.id as acao_id,
+           ai.status as acao_status,
+           ai.data_registro as acao_data,
+           -- Tempo até expiração
+           CASE 
+               WHEN p.respondida = TRUE THEN NULL
+               WHEN p.data_expiracao <= NOW() THEN 0
+               ELSE TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)
+           END as horas_restantes
+    FROM pesquisas p
+    LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
+    WHERE {where_clause}
+    ORDER BY p.created_at DESC
+    LIMIT 20
+    """
+    
+    pesquisas = execute_query(query_pesquisas, params_base, fetch=True) or []
+    
+    # === ORGANIZAR MÉTRICAS COMPLETAS ===
     metricas_completas = {
         'total_pesquisas': metricas['total_pesquisas'],
         'respondidas': metricas['respondidas'],
@@ -188,31 +357,19 @@ def dashboard():
         'expiradas': metricas['expiradas'],
         'taxa_resposta': metricas['taxa_resposta'],
         'clientes_unicos': metricas['clientes_unicos'],
+        'mal_avaliados': metricas['mal_avaliados'],
+        'percentual_mal_avaliados': metricas['percentual_mal_avaliados'],
         'por_produto': por_produto,
         'por_agente': por_agente,
         'esta_semana': esta_semana,
         'semana_passada': semana_passada,
         'este_mes': este_mes,
         'mes_passado': mes_passado,
-        'alertas': alertas
+        'alertas': alertas,
+        # NOVAS FUNCIONALIDADES
+        'pesquisas_pendentes': pesquisas_pendentes,
+        'stats_pendentes': stats_pendentes
     }
-    
-    # Buscar pesquisas recentes para a tabela
-    query_pesquisas = """
-    SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
-           CASE 
-               WHEN p.data_expiracao < NOW() THEN 'expirada'
-               WHEN p.respondida = TRUE THEN 'respondida'
-               ELSE 'ativa'
-           END as status_pesquisa
-    FROM pesquisas p
-    LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
-    LEFT JOIN usuarios u ON p.agente_id = u.id
-    ORDER BY p.created_at DESC
-    LIMIT 20
-    """
-    
-    pesquisas = execute_query(query_pesquisas, fetch=True) or []
     
     return render_template('gestor/dashboard.html', 
                          metricas=metricas_completas, 
@@ -601,3 +758,246 @@ def editar_usuario(user_id):
     
     usuario = result[0]
     return render_template('gestor/editar_usuario.html', usuario=usuario)
+
+
+# ===== ROTAS DE AÇÕES DE INSATISFAÇÃO =====
+
+@bp.route('/acoes/<int:pesquisa_id>', methods=['GET'])
+@gestor_required
+def buscar_acoes(pesquisa_id):
+    """Buscar ações existentes para uma pesquisa"""
+    try:
+        # Verificar se pesquisa existe e tem sentimento negativo
+        query_verifica = """
+        SELECT p.id, p.nome_cliente, as_sent.sentimento 
+        FROM pesquisas p
+        LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+        WHERE p.id = %s
+        """
+        
+        result_verifica = execute_query(query_verifica, (pesquisa_id,), fetch=True)
+        
+        if not result_verifica:
+            return jsonify({'success': False, 'error': 'Pesquisa não encontrada'})
+        
+        pesquisa = result_verifica[0]
+        
+        if pesquisa['sentimento'] != 'negative':
+            return jsonify({'success': False, 'error': 'Esta pesquisa não possui sentimento negativo'})
+        
+        # Buscar ações existentes
+        query_acoes = """
+        SELECT ai.*, u.nome as gestor_nome
+        FROM acoes_insatisfacao ai
+        LEFT JOIN usuarios u ON ai.gestor_id = u.id
+        WHERE ai.pesquisa_id = %s
+        ORDER BY ai.data_registro DESC
+        LIMIT 1
+        """
+        
+        result_acoes = execute_query(query_acoes, (pesquisa_id,), fetch=True)
+        
+        if not result_acoes:
+            return jsonify({'success': False, 'error': 'Nenhuma ação encontrada para esta pesquisa'})
+        
+        acao = result_acoes[0]
+        
+        return jsonify({
+            'success': True,
+            'acoes_tomadas': acao['acoes_tomadas'],
+            'status': acao['status'],
+            'data_registro': acao['data_registro'].strftime('%d/%m/%Y %H:%M'),
+            'gestor_nome': acao['gestor_nome']
+        })
+        
+    except Exception as e:
+        print(f"Erro ao buscar ações: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@bp.route('/acoes/<int:pesquisa_id>', methods=['POST'])
+@gestor_required
+def salvar_acoes(pesquisa_id):
+    """Salvar/atualizar ações para uma pesquisa"""
+    try:
+        from flask import session
+        
+        # Obter dados do JSON
+        data = request.get_json()
+        acoes_tomadas = data.get('acoes_tomadas', '').strip()
+        status = data.get('status', 'pendente')
+        
+        if not acoes_tomadas:
+            return jsonify({'success': False, 'error': 'Ações tomadas são obrigatórias'})
+        
+        if status not in ['pendente', 'em_andamento', 'resolvido']:
+            return jsonify({'success': False, 'error': 'Status inválido'})
+        
+        # Verificar se pesquisa existe e tem sentimento negativo
+        query_verifica = """
+        SELECT p.id, p.nome_cliente, as_sent.sentimento, as_sent.id as analise_id
+        FROM pesquisas p
+        LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+        WHERE p.id = %s
+        """
+        
+        result_verifica = execute_query(query_verifica, (pesquisa_id,), fetch=True)
+        
+        if not result_verifica:
+            return jsonify({'success': False, 'error': 'Pesquisa não encontrada'})
+        
+        pesquisa = result_verifica[0]
+        
+        if pesquisa['sentimento'] != 'negative':
+            return jsonify({'success': False, 'error': 'Esta pesquisa não possui sentimento negativo'})
+        
+        # Verificar se já existe ação para esta pesquisa
+        query_existe = "SELECT id FROM acoes_insatisfacao WHERE pesquisa_id = %s"
+        result_existe = execute_query(query_existe, (pesquisa_id,), fetch=True)
+        
+        gestor_id = session['user_id']
+        analise_id = pesquisa['analise_id']
+        
+        if result_existe:
+            # Atualizar ação existente
+            acao_id = result_existe[0]['id']
+            
+            query_update = """
+            UPDATE acoes_insatisfacao 
+            SET acoes_tomadas = %s, status = %s, gestor_id = %s,
+                data_atualizacao = CURRENT_TIMESTAMP
+            WHERE id = %s
+            """
+            
+            result = execute_query(query_update, (acoes_tomadas, status, gestor_id, acao_id))
+            
+            if result:
+                return jsonify({
+                    'success': True, 
+                    'message': 'Ações atualizadas com sucesso',
+                    'acao_id': acao_id
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Erro ao atualizar ações'})
+        
+        else:
+            # Inserir nova ação
+            query_insert = """
+            INSERT INTO acoes_insatisfacao 
+            (pesquisa_id, analise_sentimento_id, gestor_id, acoes_tomadas, status)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            result = execute_query(query_insert, (pesquisa_id, analise_id, gestor_id, acoes_tomadas, status))
+            
+            if result:
+                # Buscar ID da ação inserida
+                query_last_id = "SELECT LAST_INSERT_ID() as id"
+                result_id = execute_query(query_last_id, fetch=True)
+                acao_id = result_id[0]['id'] if result_id else None
+                
+                return jsonify({
+                    'success': True, 
+                    'message': 'Ações salvas com sucesso',
+                    'acao_id': acao_id
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Erro ao salvar ações'})
+        
+    except Exception as e:
+        print(f"Erro ao salvar ações: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+    
+    
+    # ADICIONAR no final do arquivo app/routes/gestor.py
+
+@bp.route('/lembrete/<int:pesquisa_id>', methods=['POST'])
+@gestor_required
+def enviar_lembrete(pesquisa_id):
+    """Enviar lembrete ao agente sobre pesquisa pendente crítica"""
+    try:
+        # Buscar dados da pesquisa e agente
+        query = """
+        SELECT p.*, u.nome as agente_nome, u.email as agente_email,
+               tp.nome as tipo_produto,
+               TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) as horas_restantes
+        FROM pesquisas p
+        JOIN usuarios u ON p.agente_id = u.id
+        JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
+        WHERE p.id = %s 
+        AND p.respondida = FALSE 
+        AND p.data_expiracao > NOW()
+        """
+        
+        result = execute_query(query, (pesquisa_id,), fetch=True)
+        
+        if not result:
+            return jsonify({
+                'success': False, 
+                'error': 'Pesquisa não encontrada ou já respondida/expirada'
+            })
+        
+        pesquisa = result[0]
+        
+        # Verificar se é realmente crítica (menos de 6 horas)
+        if pesquisa['horas_restantes'] > 6:
+            return jsonify({
+                'success': False,
+                'error': 'Pesquisa não está em estado crítico (>6h restantes)'
+            })
+        
+        # Verificar se já foi enviado lembrete nas últimas 2 horas
+        query_check = """
+        SELECT created_at FROM log_lembretes 
+        WHERE pesquisa_id = %s 
+        AND created_at > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+        ORDER BY created_at DESC LIMIT 1
+        """
+        
+        lembrete_recente = execute_query(query_check, (pesquisa_id,), fetch=True)
+        
+        if lembrete_recente:
+            return jsonify({
+                'success': False,
+                'error': 'Lembrete já enviado nas últimas 2 horas'
+            })
+        
+        # TODO: Implementar envio real de email
+        # Por enquanto, apenas simular o envio
+        
+        sucesso_envio = True  # Simular sucesso
+        
+        if sucesso_envio:
+            # Registrar no log
+            query_log = """
+            INSERT INTO log_lembretes 
+            (pesquisa_id, agente_id, gestor_id, tipo_lembrete, enviado_com_sucesso)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            from flask import session
+            execute_query(query_log, (
+                pesquisa_id,
+                pesquisa['agente_id'],
+                session['user_id'],
+                'pesquisa_critica',
+                True
+            ))
+            
+            return jsonify({
+                'success': True,
+                'message': f'Lembrete enviado para {pesquisa["agente_nome"]} ({pesquisa["agente_email"]})',
+                'agente': pesquisa['agente_nome'],
+                'horas_restantes': pesquisa['horas_restantes']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Falha no envio do email'
+            })
+            
+    except Exception as e:
+        print(f"Erro ao enviar lembrete: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })

@@ -7,12 +7,14 @@ from app.routes.auth import login_required
 
 bp = Blueprint('agente', __name__)
 
+# ATUALIZAÇÃO PARA app/routes/agente.py
+
 @bp.route('/')
 @login_required
 def dashboard():
     agente_id = session['user_id']  # Usar o ID do usuário logado
     
-    # Métricas gerais do agente específico
+    # === MÉTRICAS GERAIS COM FEEDBACK NEGATIVO ===
     query_metricas = """
     SELECT 
         COUNT(*) as total_pesquisas,
@@ -21,18 +23,38 @@ def dashboard():
         ROUND(
             (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(COUNT(*), 0), 1
-        ) as taxa_resposta
-    FROM pesquisas 
-    WHERE agente_id = %s
+        ) as taxa_resposta,
+        -- NOVAS MÉTRICAS DE FEEDBACK
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as feedback_negativo,
+        SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) as feedback_positivo,
+        SUM(CASE WHEN as_sent.sentimento = 'neutral' THEN 1 ELSE 0 END) as feedback_neutro,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_negativo,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_positivo
+    FROM pesquisas p
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE p.agente_id = %s
     """
     
     metricas_result = execute_query(query_metricas, (agente_id,), fetch=True)
     metricas = metricas_result[0] if metricas_result else {
         'total_pesquisas': 0, 'pesquisas_respondidas': 0, 
-        'pesquisas_pendentes': 0, 'taxa_resposta': 0
+        'pesquisas_pendentes': 0, 'taxa_resposta': 0,
+        'feedback_negativo': 0, 'feedback_positivo': 0, 'feedback_neutro': 0,
+        'percentual_negativo': 0, 'percentual_positivo': 0
     }
     
-    # Métricas por produto apenas do agente logado
+    # Garantir que valores não sejam None
+    for key in metricas:
+        if metricas[key] is None:
+            metricas[key] = 0
+
+    # === MÉTRICAS POR PRODUTO COM FEEDBACK ===
     query_por_produto = """
     SELECT 
         tp.nome,
@@ -41,61 +63,111 @@ def dashboard():
         ROUND(
             (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(COUNT(p.id), 0), 1
-        ) as taxa
+        ) as taxa,
+        -- FEEDBACK POR PRODUTO
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos,
+        SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) as positivos,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_negativo_produto
     FROM tipos_produtos tp
     LEFT JOIN pesquisas p ON tp.id = p.tipo_produto_id AND p.agente_id = %s
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
     GROUP BY tp.id, tp.nome
     ORDER BY tp.nome
     """
     
     por_produto = execute_query(query_por_produto, (agente_id,), fetch=True) or []
-    
-    # Métricas temporais apenas do agente logado
+
+    # 🔽 Adicionar este bloco
+    for p in por_produto:
+        for key in ["taxa", "negativos", "positivos", "percentual_negativo_produto", "total", "respondidas"]:
+            if p.get(key) is None:
+                p[key] = 0
+
+    # === MÉTRICAS TEMPORAIS COM FEEDBACK ===
     query_esta_semana = """
     SELECT 
         COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas
-    FROM pesquisas 
-    WHERE agente_id = %s 
-    AND YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1)
+        SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_negativo_semana
+    FROM pesquisas p
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE p.agente_id = %s 
+    AND YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)
     """
     
     query_semana_passada = """
     SELECT 
         COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas
-    FROM pesquisas 
-    WHERE agente_id = %s 
-    AND YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1) - 1
+        SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_negativo_semana
+    FROM pesquisas p
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE p.agente_id = %s 
+    AND YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1) - 1
     """
     
     query_este_mes = """
     SELECT 
         COUNT(*) as criadas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as respondidas
-    FROM pesquisas 
-    WHERE agente_id = %s 
-    AND YEAR(created_at) = YEAR(CURDATE()) 
-    AND MONTH(created_at) = MONTH(CURDATE())
+        SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+        SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos,
+        ROUND(
+            (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+        ) as percentual_negativo_semana
+    FROM pesquisas p
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
+    WHERE p.agente_id = %s 
+    AND YEAR(p.created_at) = YEAR(CURDATE()) 
+    AND MONTH(p.created_at) = MONTH(CURDATE())
     """
     
     esta_semana_result = execute_query(query_esta_semana, (agente_id,), fetch=True)
-    esta_semana = esta_semana_result[0] if esta_semana_result else {'criadas': 0, 'respondidas': 0}
-    esta_semana = {k: v or 0 for k, v in esta_semana.items()}
+    esta_semana = esta_semana_result[0] if esta_semana_result else {
+        'criadas': 0, 'respondidas': 0, 'negativos': 0, 'percentual_negativo_semana': 0
+    }
     
     semana_passada_result = execute_query(query_semana_passada, (agente_id,), fetch=True)
-    semana_passada = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0}
-    semana_passada = {k: v or 0 for k, v in semana_passada.items()}
+    semana_passada = semana_passada_result[0] if semana_passada_result else {
+        'criadas': 0, 'respondidas': 0, 'negativos': 0, 'percentual_negativo_semana': 0
+    }
     
     este_mes_result = execute_query(query_este_mes, (agente_id,), fetch=True)
-    este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0}
-    este_mes = {k: v or 0 for k, v in este_mes.items()}
+    este_mes = este_mes_result[0] if este_mes_result else {
+        'criadas': 0, 'respondidas': 0, 'negativos': 0, 'percentual_negativo_semana': 0
+    }
     
-    # Últimas pesquisas apenas do agente logado
+    # Garantir que valores não sejam None
+    for periodo in [esta_semana, semana_passada, este_mes]:
+        for key in periodo:
+            if periodo[key] is None:
+                periodo[key] = 0
+
+    # === ÚLTIMAS PESQUISAS COM STATUS DE FEEDBACK ===
     query_ultimas = """
-    SELECT p.*, tp.nome as tipo_produto
+    SELECT p.*, tp.nome as tipo_produto,
+           as_sent.sentimento,
+           as_sent.confianca,
+           as_sent.motivo_insatisfacao,
+           CASE 
+               WHEN p.data_expiracao < NOW() THEN 'expirada'
+               WHEN p.respondida = TRUE THEN 'respondida'
+               ELSE 'ativa'
+           END as status_pesquisa
     FROM pesquisas p
     LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
+    LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
     WHERE p.agente_id = %s
     ORDER BY p.created_at DESC
     LIMIT 10
@@ -103,16 +175,57 @@ def dashboard():
     
     ultimas_pesquisas = execute_query(query_ultimas, (agente_id,), fetch=True) or []
     
-    # Organizar dados
+    # === ANÁLISE DE PERFORMANCE DO AGENTE ===
+    alertas_agente = []
+    
+    # Alerta de alto percentual de feedback negativo
+    if metricas['percentual_negativo'] > 20:
+        alertas_agente.append({
+            'tipo': 'danger',
+            'titulo': 'Alto Índice de Insatisfação',
+            'mensagem': f'{metricas["percentual_negativo"]}% dos seus atendimentos receberam feedback negativo.'
+        })
+    elif metricas['percentual_negativo'] > 10:
+        alertas_agente.append({
+            'tipo': 'warning',
+            'titulo': 'Atenção ao Feedback',
+            'mensagem': f'{metricas["percentual_negativo"]}% dos seus atendimentos receberam feedback negativo.'
+        })
+    
+    # Alerta de baixa taxa de resposta
+    if metricas['taxa_resposta'] < 50:
+        alertas_agente.append({
+            'tipo': 'warning',
+            'titulo': 'Taxa de Resposta Baixa',
+            'mensagem': f'Apenas {metricas["taxa_resposta"]}% das suas pesquisas foram respondidas.'
+        })
+    
+    # Alerta de piora no feedback
+    if (esta_semana['percentual_negativo_semana'] > 0 and 
+        semana_passada['percentual_negativo_semana'] > 0 and
+        esta_semana['percentual_negativo_semana'] > semana_passada['percentual_negativo_semana'] + 5):
+        alertas_agente.append({
+            'tipo': 'warning',
+            'titulo': 'Piora no Feedback',
+            'mensagem': f'Feedback negativo aumentou de {semana_passada["percentual_negativo_semana"]}% para {esta_semana["percentual_negativo_semana"]}% esta semana.'
+        })
+
+    # === ORGANIZAR DADOS ===
     metricas_completas = {
         'total_pesquisas': metricas['total_pesquisas'],
         'pesquisas_respondidas': metricas['pesquisas_respondidas'],
         'pesquisas_pendentes': metricas['pesquisas_pendentes'],
         'taxa_resposta': metricas['taxa_resposta'],
+        'feedback_negativo': metricas['feedback_negativo'],
+        'feedback_positivo': metricas['feedback_positivo'],
+        'feedback_neutro': metricas['feedback_neutro'],
+        'percentual_negativo': metricas['percentual_negativo'],
+        'percentual_positivo': metricas['percentual_positivo'],
         'por_produto': por_produto,
         'esta_semana': esta_semana,
         'semana_passada': semana_passada,
-        'este_mes': este_mes
+        'este_mes': este_mes,
+        'alertas': alertas_agente
     }
     
     return render_template('agente/dashboard.html', 
