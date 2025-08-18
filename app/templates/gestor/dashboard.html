@@ -980,7 +980,7 @@
 </div>
 
 <script>
-/ ==========================================
+//==========================================
 // SISTEMA DE FILTROS REFEITO DO ZERO
 // ==========================================
 
@@ -1196,6 +1196,110 @@ window.testarFiltros = function() {
     console.log('Campo busca readonly:', document.getElementById('buscar')?.readOnly);
     console.log('=== FIM DO TESTE ===');
 };
+
+
+
+// ===== FUNÇÕES PARA BOTÕES DE AÇÕES =====
+// Adicionar estas funções ao final do script no dashboard.html
+
+function adicionarAcoes(pesquisaId) {
+    console.log('🚨 Abrindo modal para adicionar ações - Pesquisa ID:', pesquisaId);
+    
+    // Limpar formulário
+    document.getElementById('formAcoes').reset();
+    document.getElementById('pesquisaId').value = pesquisaId;
+    
+    // Alterar título do modal
+    document.querySelector('#modalAcoes .modal-title').innerHTML = '🚨 Adicionar Ações para Resolver Insatisfação';
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalAcoes'));
+    modal.show();
+}
+
+function verAcoes(pesquisaId) {
+    console.log('✅ Abrindo modal para ver ações - Pesquisa ID:', pesquisaId);
+    
+    // Buscar ações existentes
+    fetch(`/gestor/acoes/${pesquisaId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Preencher formulário com dados existentes
+                document.getElementById('pesquisaId').value = pesquisaId;
+                document.getElementById('acoes_tomadas').value = data.acoes_tomadas;
+                document.getElementById('status').value = data.status;
+                
+                // Alterar título do modal
+                document.querySelector('#modalAcoes .modal-title').innerHTML = `✅ Ações Já Tomadas - ${data.data_registro} por ${data.gestor_nome}`;
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('modalAcoes'));
+                modal.show();
+            } else {
+                alert('Erro ao carregar ações: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao carregar ações');
+        });
+}
+
+function salvarAcoes() {
+    const form = document.getElementById('formAcoes');
+    const pesquisaId = document.getElementById('pesquisaId').value;
+    const acoes_tomadas = document.getElementById('acoes_tomadas').value.trim();
+    const status = document.getElementById('status').value;
+    
+    console.log('💾 Salvando ações...');
+    
+    // Validar campos obrigatórios
+    if (!acoes_tomadas) {
+        alert('Por favor, descreva as ações tomadas.');
+        return;
+    }
+    
+    if (!status) {
+        alert('Por favor, selecione o status da ação.');
+        return;
+    }
+    
+    // Enviar dados como JSON
+    fetch(`/gestor/acoes/${pesquisaId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            acoes_tomadas: acoes_tomadas,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Ações salvas com sucesso!');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalAcoes'));
+            modal.hide();
+            
+            // Recarregar página para atualizar botões
+            location.reload();
+        } else {
+            alert('❌ Erro ao salvar ações: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('❌ Erro ao salvar ações');
+    });
+}
+
+
+
+
 </script>
 
 {% endblock %}
