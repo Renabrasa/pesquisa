@@ -757,7 +757,28 @@ def editar_usuario(user_id):
         return "Usuário não encontrado", 404
     
     usuario = result[0]
-    return render_template('gestor/editar_usuario.html', usuario=usuario)
+    
+    # Buscar estatísticas do usuário (apenas para agentes)
+    estatisticas = {'total_pesquisas': 0, 'pesquisas_respondidas': 0}
+    
+    if usuario['tipo_usuario'] == 'agente':
+        query_stats = """
+        SELECT 
+            COUNT(p.id) as total_pesquisas,
+            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as pesquisas_respondidas
+        FROM pesquisas p
+        WHERE p.agente_id = %s
+        """
+        
+        result_stats = execute_query(query_stats, (user_id,), fetch=True)
+        
+        if result_stats:
+            estatisticas = {
+                'total_pesquisas': result_stats[0]['total_pesquisas'] or 0,
+                'pesquisas_respondidas': result_stats[0]['pesquisas_respondidas'] or 0
+            }
+    
+    return render_template('gestor/editar_usuario.html', usuario=usuario, estatisticas=estatisticas)
 
 
 # ===== ROTAS DE AÇÕES DE INSATISFAÇÃO =====
