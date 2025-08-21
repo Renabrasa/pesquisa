@@ -217,6 +217,37 @@
     opacity: 1 !important;
 }
 
+.tag-ativa {
+    background: #495057;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.tag-ativa .btn-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 10px;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+    opacity: 0.8;
+}
+
+.tag-ativa .btn-close:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+}
+
+
 </style>
 {% extends 'shared/base.html' %}
 
@@ -236,7 +267,7 @@
     <a href="/" class="btn btn-outline-secondary">← Voltar ao Início</a>
 </div>
 
-<!-- SEÇÃO DE FILTROS SIMPLIFICADA E FUNCIONAL -->
+<!-- SEÇÃO DE FILTROS COM PRODUTO ADICIONADO -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -246,17 +277,30 @@
             <div class="card-body py-3">
                 <form method="GET" id="filtrosForm" class="row g-3 align-items-end">
                     
-                    <!-- Campo de Busca - POSIÇÃO PRINCIPAL -->
-                    <div class="col-md-4">
+                    <!-- Campo de Busca -->
+                    <div class="col-md-3">
                         <label for="buscar" class="form-label fw-bold">Buscar</label>
                         <input type="text" 
                                class="form-control" 
                                id="buscar" 
                                name="busca" 
                                value="{{ request.args.get('busca', '') }}"
-                               placeholder="Digite código, cliente, treinamento..."
+                               placeholder="Código, cliente, treinamento..."
                                autocomplete="off">
-                        
+                    </div>
+                    
+                    <!-- NOVO: Filtro de Produto -->
+                    <div class="col-md-2">
+                        <label for="produtoFiltro" class="form-label fw-bold">Produto</label>
+                        <select class="form-control" id="produtoFiltro" name="produto_id">
+                            <option value="">Todos os Produtos</option>
+                            {% for produto in produtos %}
+                            <option value="{{ produto.id }}" 
+                                    {% if request.args.get('produto_id') == produto.id|string %}selected{% endif %}>
+                                {{ produto.nome }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
                     
                     <!-- Data Início -->
@@ -280,7 +324,7 @@
                     </div>
                     
                     <!-- Status -->
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <label for="statusFiltro" class="form-label fw-bold">Status</label>
                         <select class="form-control" id="statusFiltro" name="status">
                             <option value="">Todos</option>
@@ -326,16 +370,17 @@
                 
                 <!-- Indicadores de Filtros Ativos -->
                 <div id="filtrosAtivos" class="mt-3" style="display: none;">
-                    <div class="d-flex align-items-center gap-2">
-                        <small class="text-primary fw-bold">Filtros ativos:</small>
-                        <div id="tagsAtivas" class="d-flex gap-1 flex-wrap"></div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <small class="text-muted fw-bold">Filtros ativos:</small>
+                        <div id="tagsAtivas" class="d-flex gap-2 flex-wrap">
+                            <!-- Tags serão inseridas via JavaScript -->
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
 <!-- KPIs PRINCIPAIS PROFISSIONAIS -->
 <div class="row mb-4">
     <div class="col-md-2">
@@ -1029,6 +1074,7 @@ function aplicarPeriodo(tipo) {
 // === LIMPAR TODOS OS FILTROS ===
 function limparTodosFiltros() {
     document.getElementById('buscar').value = '';
+    document.getElementById('produtoFiltro').value = '';  // NOVO
     document.getElementById('dataInicio').value = '';
     document.getElementById('dataFim').value = '';
     document.getElementById('statusFiltro').value = '';
@@ -1044,6 +1090,9 @@ function removerFiltro(tipo) {
     switch(tipo) {
         case 'busca':
             document.getElementById('buscar').value = '';
+            break;
+        case 'produto':  // NOVO
+            document.getElementById('produtoFiltro').value = '';
             break;
         case 'periodo':
             document.getElementById('dataInicio').value = '';
@@ -1063,6 +1112,7 @@ function removerFiltro(tipo) {
 // === ATUALIZAR INDICADORES DE FILTROS ATIVOS ===
 function atualizarIndicadores() {
     const busca = document.getElementById('buscar').value.trim();
+    const produto = document.getElementById('produtoFiltro').value; 
     const dataInicio = document.getElementById('dataInicio').value;
     const dataFim = document.getElementById('dataFim').value;
     const status = document.getElementById('statusFiltro').value;
@@ -1172,7 +1222,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Atualizar indicadores quando mudar qualquer campo
-    const campos = ['buscar', 'dataInicio', 'dataFim', 'statusFiltro'];
+    const campos = ['buscar', 'produtoFiltro', 'dataInicio', 'dataFim', 'statusFiltro'];  // PRODUTO ADICIONADO
     campos.forEach(id => {
         const campo = document.getElementById(id);
         if (campo) {
@@ -1183,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Proteção contínua - verificar a cada 3 segundos
     setInterval(protegerCampoBusca, 3000);
     
-    console.log('✅ Sistema de filtros pronto!');
+    console.log('✅ Sistema de filtros pronto (com produto)!');
 });
 
 // === FUNÇÕES GLOBAIS PARA DEBUG ===

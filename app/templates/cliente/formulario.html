@@ -1,6 +1,6 @@
 {% extends 'shared/base.html' %}
 
-{% block title %}Pesquisa de Satisfação{% endblock %}
+{% block title %}Pesquisa de Satisfação - {{ pesquisa.tipo_produto }}{% endblock %}
 
 {% block nav_extra %}
 <span class="navbar-text">Pesquisa de Satisfação</span>
@@ -8,29 +8,81 @@
 
 {% block content %}
 <style>
-.card-pesquisa {
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    border: none;
-    max-width: 700px;
+:root {
+    --primary-color: #2C3E50;
+    --secondary-color: #3498DB;
+    --accent-color: #E74C3C;
+    --success-color: #27AE60;
+    --background-color: #F8F9FA;
+    --card-background: #FFFFFF;
+    --text-primary: #2C3E50;
+    --text-secondary: #7F8C8D;
+    --border-color: #E9ECEF;
+    --border-radius: 8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+body {
+    background-color: var(--background-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.container-pesquisa {
+    max-width: 900px;
     margin: 0 auto;
+    padding: 20px;
 }
 
-.header-pesquisa {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px 12px 0 0 !important;
-    padding: 1.5rem;
+/* HEADER PROFISSIONAL */
+.header-profissional {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    padding: 30px;
     color: white;
+    margin-bottom: 0;
 }
 
-.agente-info {
-    background: rgba(255,255,255,0.15);
-    border-radius: 8px;
-    padding: 1rem;
-    backdrop-filter: blur(10px);
+.logo-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
 }
 
-.agente-avatar {
+.produto-logo {
+    height: 120px;
+    max-width: 350px;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+}
+
+.titulo-principal {
+    text-align: center;
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.subtitulo {
+    text-align: center;
+    font-size: 1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.agente-section {
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.agente-foto {
     width: 50px;
     height: 50px;
     border-radius: 50%;
@@ -38,249 +90,600 @@
     object-fit: cover;
 }
 
-.info-cliente {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    border-left: 4px solid #667eea;
-}
-
-.pergunta-item {
-    background: #fff;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border: 1px solid #e9ecef;
-    transition: border-color 0.3s ease;
-}
-
-.pergunta-item:hover {
-    border-color: #667eea;
-}
-
-.form-control, .form-select {
-    border-radius: 6px;
-    border: 1px solid #ced4da;
-    transition: border-color 0.3s ease;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-}
-
-.btn-enviar {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    border-radius: 20px;
-    padding: 12px 30px;
+.agente-info h4 {
+    margin: 0;
+    font-size: 1.1rem;
     font-weight: 600;
+}
+
+.agente-info p {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+/* CORPO DO FORMULÁRIO */
+.corpo-formulario {
+    background: var(--card-background);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    padding: 30px;
+    box-shadow: var(--shadow);
+}
+
+.info-cliente {
+    background: #F8F9FA;
+    border-left: 4px solid var(--secondary-color);
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: var(--border-radius);
+}
+
+.cliente-nome {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0 0 5px 0;
+    color: var(--text-primary);
+}
+
+.treinamento-nome {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* BARRA DE PROGRESSO */
+.progresso-container {
+    margin-bottom: 30px;
+}
+
+.progresso-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.progresso-texto {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.progresso-barra {
+    background: #E9ECEF;
+    border-radius: 10px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.progresso-preenchimento {
+    background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+/* CARDS DAS PERGUNTAS */
+.pergunta-container {
+    background: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 25px;
+    margin-bottom: 20px;
+    transition: border-color 0.3s ease;
+}
+
+.pergunta-container:hover {
+    border-color: var(--secondary-color);
+}
+
+.pergunta-container.respondida {
+    border-color: var(--success-color);
+    background: #F8FFF9;
+}
+
+.pergunta-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.pergunta-numero {
+    background: var(--secondary-color);
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.pergunta-titulo {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.obrigatoria {
+    color: var(--accent-color);
+    font-weight: 700;
+}
+
+/* INPUTS PROFISSIONAIS */
+.input-texto {
+    width: 100%;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.3s ease;
+}
+
+.input-texto:focus {
+    border-color: var(--secondary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* RANGE SLIDER PROFISSIONAL */
+.range-container {
+    background: #F8F9FA;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+}
+
+.range-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.range-valor {
+    background: var(--secondary-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.range-slider {
+    width: 100%;
+    height: 6px;
+    background: #E9ECEF;
+    border-radius: 3px;
+    outline: none;
+    margin: 15px 0;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.range-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    border: none;
+}
+
+.range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* RADIO BUTTONS PROFISSIONAIS */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.radio-opcao {
+    position: relative;
+}
+
+.radio-input {
+    display: none;
+}
+
+.radio-label {
+    display: block;
+    padding: 12px 15px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--card-background);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    padding-left: 45px;
+}
+
+.radio-label::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    background: white;
     transition: all 0.3s ease;
 }
 
-.btn-enviar:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+.radio-label:hover {
+    border-color: var(--secondary-color);
+    background: #F8F9FA;
 }
 
-.emoji-btn {
+.radio-input:checked + .radio-label {
+    border-color: var(--secondary-color);
+    background: #F0F8FF;
+    color: var(--secondary-color);
+}
+
+.radio-input:checked + .radio-label::before {
+    border-color: var(--secondary-color);
+    background: var(--secondary-color);
+    box-shadow: inset 0 0 0 3px white;
+}
+
+/* SATISFAÇÃO SEM EMOJIS */
+.satisfacao-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.satisfacao-label {
+    text-align: center;
+    padding: 15px 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* SIM/NÃO */
+.sim-nao-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.sim-nao-label {
+    text-align: center;
+    padding: 15px;
+    font-weight: 600;
+}
+
+.radio-input:checked + .sim-nao-label.sim {
+    border-color: var(--success-color);
+    background: #F0FFF4;
+    color: var(--success-color);
+}
+
+/* BOTÃO DE ENVIO */
+.envio-container {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-enviar {
+    background: var(--secondary-color);
+    color: white;
     border: none;
-    background: transparent;
-    font-size: 1.5rem;
-    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    padding: 15px 40px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.btn-enviar:hover {
+    background: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
+}
+
+.btn-enviar:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.texto-confidencial {
+    margin-top: 15px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* RESPONSIVO */
+@media (max-width: 768px) {
+    .container-pesquisa {
+        padding: 10px;
+    }
+    
+    .header-profissional {
+        padding: 20px;
+    }
+    
+    .titulo-principal {
+        font-size: 1.5rem;
+    }
+    
+    .corpo-formulario {
+        padding: 20px;
+    }
+    
+    .agente-section {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .sim-nao-group {
+        grid-template-columns: 1fr;
+    }
+    
+    .satisfacao-group {
+        grid-template-columns: 1fr;
+    }
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
     border-radius: 50%;
-    transition: all 0.2s ease;
-    opacity: 0.7;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
 }
 
-.emoji-btn:hover, .emoji-btn.active {
-    opacity: 1;
-    transform: scale(1.1);
-    background: rgba(102, 126, 234, 0.1);
-}
-
-.progress-bar {
-    background: linear-gradient(90deg, #667eea, #764ba2);
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 </style>
 
-<div class="container py-3">
-    <div class="card card-pesquisa">
-        <!-- Header Compacto -->
-        <div class="header-pesquisa">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <img src="{{ pesquisa.agente_foto }}" alt="Consultor" class="agente-avatar">
+<div class="container-pesquisa">
+    <!-- HEADER PROFISSIONAL -->
+    <div class="header-profissional">
+        <!-- Logo do Produto -->
+        <div class="logo-section">
+            {% if pesquisa.tipo_produto == 'Time is Money' %}
+                <img src="/static/img/logos/time-is-money.png" alt="Time is Money" class="produto-logo">
+            {% elif pesquisa.tipo_produto == 'Alterdata' %}
+                <img src="/static/img/logos/alterdata.png" alt="Alterdata" class="produto-logo">
+            {% elif pesquisa.tipo_produto == 'Servidor na Nuvem' %}
+                <img src="/static/img/logos/servidor-nuvem.png" alt="Servidor na Nuvem" class="produto-logo">
+            {% else %}
+                <div class="produto-logo" style="background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; padding: 20px;">
+                    {{ pesquisa.tipo_produto }}
                 </div>
-                <div class="col">
-                    <h5 class="mb-1">Pesquisa de Satisfação</h5>
-                    <div class="agente-info">
-                        <div class="row align-items-center">
-                            <div class="col-sm-8">
-                                <small><strong>{{ pesquisa.agente_nome or 'Seu Consultor' }}</strong></small><br>
-                                <small class="opacity-75">{{ pesquisa.tipo_produto }}</small>
-                            </div>
-                            <div class="col-sm-4 text-end">
-                                <small class="opacity-75">
-                                    <i class="fas fa-star"></i> Sua opinião importa!
-                                </small>
-                            </div>
-                        </div>
-                    </div>
+            {% endif %}
+        </div>
+        
+        <h1 class="titulo-principal">Pesquisa de Satisfação</h1>
+        <p class="subtitulo">Sua avaliação é fundamental para o aprimoramento contínuo dos nossos serviços</p>
+        
+        <!-- Informações do Agente -->
+        <div class="agente-section">
+            <img src="{{ pesquisa.agente_foto }}" alt="Consultor Responsável" class="agente-foto">
+            <div class="agente-info">
+                <h4>{{ pesquisa.agente_nome or 'Consultor Responsável' }}</h4>
+                <p>{{ pesquisa.tipo_produto }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CORPO DO FORMULÁRIO -->
+    <div class="corpo-formulario">
+        <!-- Informações do Cliente -->
+        <div class="info-cliente">
+            <h3 class="cliente-nome">{{ pesquisa.nome_cliente }}</h3>
+            <p class="treinamento-nome">{{ pesquisa.nome_treinamento }}</p>
+        </div>
+
+        <!-- Barra de Progresso -->
+        <div class="progresso-container">
+            <div class="progresso-header">
+                <div class="progresso-texto">
+                    <strong id="progresso-atual">0</strong> de {{ perguntas|length }} perguntas respondidas
                 </div>
+                <div class="progresso-texto">
+                    Tempo estimado: 2-3 minutos
+                </div>
+            </div>
+            <div class="progresso-barra">
+                <div class="progresso-preenchimento" id="barra-progresso"></div>
             </div>
         </div>
 
-        <div class="card-body p-3">
-            <!-- Info Cliente Compacta -->
-            <div class="info-cliente">
-                <div class="row small">
-                    <div class="col-sm-4">
-                        <strong>{{ pesquisa.nome_cliente }}</strong>
-                    </div>
-                    <div class="col-sm-8 text-muted">
-                        {{ pesquisa.nome_treinamento }}
+        <!-- FORMULÁRIO -->
+        <form action="/pesquisa/{{ pesquisa.uuid }}/enviar" method="POST" id="form-pesquisa">
+            {% for pergunta in perguntas %}
+            <div class="pergunta-container" id="pergunta-{{ pergunta.id }}">
+                <div class="pergunta-header">
+                    <div class="pergunta-numero">{{ loop.index }}</div>
+                    <div style="flex: 1;">
+                        <h3 class="pergunta-titulo">
+                            {{ pergunta.texto }}
+                            {% if pergunta.obrigatoria %}
+                                <span class="obrigatoria">*</span>
+                            {% endif %}
+                        </h3>
                     </div>
                 </div>
-            </div>
-
-            <!-- Barra de Progresso -->
-            <div class="mb-3">
-                <div class="progress" style="height: 6px;">
-                    <div class="progress-bar" id="barra-progresso" style="width: 0%"></div>
-                </div>
-                <div class="d-flex justify-content-between mt-1">
-                    <small class="text-muted">
-                        <span id="progresso-atual">0</span>/{{ perguntas|length }}
-                    </small>
-                    <small class="text-muted">~2 minutos</small>
-                </div>
-            </div>
-
-            <!-- Formulário Compacto -->
-            <form action="/pesquisa/{{ pesquisa.uuid }}/enviar" method="POST" id="form-pesquisa">
-                {% for pergunta in perguntas %}
-                <div class="pergunta-item">
-                    <div class="mb-2">
-                        <label class="form-label small fw-bold mb-1">
-                            {{ loop.index }}. {{ pergunta.texto }}
-                            {% if pergunta.obrigatoria %}<span class="text-danger">*</span>{% endif %}
-                        </label>
-                    </div>
-                    
+                
+                <div class="pergunta-resposta">
+                    <!-- TEXTO LIVRE -->
                     {% if pergunta.tipo_pergunta_id == 1 %}
-                        <!-- Texto Livre -->
-                        <textarea class="form-control form-control-sm pergunta-input" 
+                        <textarea class="input-texto pergunta-input" 
                                   name="pergunta_{{ pergunta.id }}" 
-                                  rows="2"
-                                  placeholder="Sua resposta..."
+                                  placeholder="Digite sua resposta..."
                                   {% if pergunta.obrigatoria %}required{% endif %}></textarea>
-                                  
-                    {% elif pergunta.tipo_pergunta_id == 3 %}
-                        <!-- Escala Numérica -->
-                        <div class="row align-items-center">
-                            <div class="col-9">
-                                <input type="range" 
-                                       class="form-range pergunta-input" 
-                                       name="pergunta_{{ pergunta.id }}" 
-                                       min="1" max="10" value="5"
-                                       id="range_{{ pergunta.id }}"
-                                       {% if pergunta.obrigatoria %}required{% endif %}>
-                                <div class="d-flex justify-content-between small text-muted">
-                                    <span>1</span><span>5</span><span>10</span>
+                    
+                    <!-- MÚLTIPLA ESCOLHA -->
+                    {% elif pergunta.tipo_pergunta_id == 2 %}
+                        {% if pergunta.opcoes and pergunta.opcoes|length > 0 %}
+                            <div class="radio-group">
+                                {% for opcao in pergunta.opcoes %}
+                                <div class="radio-opcao">
+                                    <input type="radio" 
+                                           class="radio-input pergunta-input" 
+                                           name="pergunta_{{ pergunta.id }}" 
+                                           value="{{ opcao }}" 
+                                           id="opcao_{{ pergunta.id }}_{{ loop.index }}"
+                                           {% if pergunta.obrigatoria %}required{% endif %}>
+                                    <label class="radio-label" for="opcao_{{ pergunta.id }}_{{ loop.index }}">
+                                        {{ opcao }}
+                                    </label>
                                 </div>
+                                {% endfor %}
                             </div>
-                            <div class="col-3 text-center">
-                                <span class="badge bg-primary" id="valor_{{ pergunta.id }}">5</span>
+                        {% else %}
+                            <div style="background: #FFF3CD; border: 1px solid #F6C23E; border-radius: 8px; padding: 15px; color: #856404;">
+                                Esta pergunta não possui opções configuradas.
                             </div>
-                        </div>
-                        
-                    {% elif pergunta.tipo_pergunta_id == 5 %}
-                        <!-- Escala de Satisfação com Emojis -->
-                        <div class="d-flex justify-content-between">
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Muito Insatisfeito" id="muito_insatisfeito_{{ pergunta.id }}"
+                        {% endif %}
+                    
+                    <!-- ESCALA NUMÉRICA -->
+                    {% elif pergunta.tipo_pergunta_id == 3 %}
+                        <div class="range-container">
+                            <div class="range-header">
+                                <span style="font-weight: 600;">Sua avaliação:</span>
+                                <div class="range-valor" id="valor_{{ pergunta.id }}">5</div>
+                            </div>
+                            <input type="range" 
+                                   class="range-slider pergunta-input" 
+                                   name="pergunta_{{ pergunta.id }}" 
+                                   min="1" max="10" value="5"
+                                   id="range_{{ pergunta.id }}"
                                    {% if pergunta.obrigatoria %}required{% endif %}>
-                            <label class="emoji-btn" for="muito_insatisfeito_{{ pergunta.id }}" title="Muito Insatisfeito">
-                                😞
-                            </label>
-
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Insatisfeito" id="insatisfeito_{{ pergunta.id }}">
-                            <label class="emoji-btn" for="insatisfeito_{{ pergunta.id }}" title="Insatisfeito">
-                                😐
-                            </label>
-
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Neutro" id="neutro_{{ pergunta.id }}">
-                            <label class="emoji-btn" for="neutro_{{ pergunta.id }}" title="Neutro">
-                                😶
-                            </label>
-
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Satisfeito" id="satisfeito_{{ pergunta.id }}">
-                            <label class="emoji-btn" for="satisfeito_{{ pergunta.id }}" title="Satisfeito">
-                                😊
-                            </label>
-
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Muito Satisfeito" id="muito_satisfeito_{{ pergunta.id }}">
-                            <label class="emoji-btn" for="muito_satisfeito_{{ pergunta.id }}" title="Muito Satisfeito">
-                                😍
-                            </label>
+                            <div class="range-labels">
+                                <span>1 - Muito Insatisfatório</span>
+                                <span>5 - Adequado</span>
+                                <span>10 - Excelente</span>
+                            </div>
                         </div>
-                        
+                    
+                    <!-- SIM/NÃO -->
                     {% elif pergunta.tipo_pergunta_id == 4 %}
-                        <!-- Sim/Não -->
-                        <div class="btn-group w-100" role="group">
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Sim" id="sim_{{ pergunta.id }}"
-                                   {% if pergunta.obrigatoria %}required{% endif %}>
-                            <label class="btn btn-outline-success btn-sm" for="sim_{{ pergunta.id }}">
-                                Sim
-                            </label>
-
-                            <input type="radio" class="btn-check pergunta-input" name="pergunta_{{ pergunta.id }}" 
-                                   value="Não" id="nao_{{ pergunta.id }}">
-                            <label class="btn btn-outline-secondary btn-sm" for="nao_{{ pergunta.id }}">
-                                Não
-                            </label>
+                        <div class="sim-nao-group">
+                            <div class="radio-opcao">
+                                <input type="radio" 
+                                       class="radio-input pergunta-input" 
+                                       name="pergunta_{{ pergunta.id }}" 
+                                       value="Sim" 
+                                       id="sim_{{ pergunta.id }}"
+                                       {% if pergunta.obrigatoria %}required{% endif %}>
+                                <label class="radio-label sim-nao-label sim" for="sim_{{ pergunta.id }}">
+                                    Sim
+                                </label>
+                            </div>
+                            <div class="radio-opcao">
+                                <input type="radio" 
+                                       class="radio-input pergunta-input" 
+                                       name="pergunta_{{ pergunta.id }}" 
+                                       value="Não" 
+                                       id="nao_{{ pergunta.id }}">
+                                <label class="radio-label sim-nao-label" for="nao_{{ pergunta.id }}">
+                                    Não
+                                </label>
+                            </div>
                         </div>
-                        
+                    
+                    <!-- ESCALA DE SATISFAÇÃO (SEM EMOJIS) -->
+                    {% elif pergunta.tipo_pergunta_id == 5 %}
+                        {% if pergunta.opcoes and pergunta.opcoes|length > 0 %}
+                            <div class="satisfacao-group">
+                                {% for opcao in pergunta.opcoes %}
+                                <div class="radio-opcao">
+                                    <input type="radio" 
+                                           class="radio-input pergunta-input" 
+                                           name="pergunta_{{ pergunta.id }}" 
+                                           value="{{ opcao }}" 
+                                           id="satisfacao_{{ pergunta.id }}_{{ loop.index }}"
+                                           {% if pergunta.obrigatoria %}required{% endif %}>
+                                    <label class="radio-label satisfacao-label" for="satisfacao_{{ pergunta.id }}_{{ loop.index }}">
+                                        {{ opcao }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div style="background: #FFF3CD; border: 1px solid #F6C23E; border-radius: 8px; padding: 15px; color: #856404;">
+                                Esta pergunta não possui opções de satisfação configuradas.
+                            </div>
+                        {% endif %}
+                    
+                    {% else %}
+                        <div style="background: #D1ECF1; border: 1px solid #BEE5EB; border-radius: 8px; padding: 15px; color: #0C5460;">
+                            Tipo de pergunta não reconhecido: {{ pergunta.tipo_pergunta_id }}
+                        </div>
                     {% endif %}
                 </div>
-                {% endfor %}
-                
-                <!-- Botão de Envio -->
-                <div class="text-center mt-3">
-                    <button type="submit" class="btn btn-primary btn-enviar">
-                        <i class="fas fa-paper-plane me-1"></i>
-                        Enviar Respostas
-                    </button>
-                    <p class="mt-2 text-muted small mb-0">
-                        <i class="fas fa-shield-alt me-1"></i>
-                        Suas respostas são confidenciais
-                    </p>
-                </div>
-            </form>
-        </div>
+            </div>
+            {% endfor %}
+
+            <!-- SEÇÃO DE ENVIO -->
+            <div class="envio-container">
+                <button type="submit" class="btn-enviar" id="btn-enviar">
+                    Enviar Avaliação
+                </button>
+                <p class="texto-confidencial">
+                    Suas respostas são tratadas com total confidencialidade.<br>
+                    Este link é válido por 48 horas após o recebimento.
+                </p>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
 <script>
-// Atualizar barra de progresso
+console.log('🏢 Formulário profissional carregado');
+
+const TOTAL_PERGUNTAS = {{ perguntas|length }};
+let perguntasRespondidas = 0;
+
 function atualizarProgresso() {
-    const totalPerguntas = {{ perguntas|length }};
-    let perguntasRespondidas = 0;
+    perguntasRespondidas = 0;
     
-    // Contar perguntas respondidas
-    document.querySelectorAll('.pergunta-item').forEach(item => {
-        const inputs = item.querySelectorAll('.pergunta-input');
+    document.querySelectorAll('.pergunta-container').forEach(container => {
+        const inputs = container.querySelectorAll('.pergunta-input');
         let respondida = false;
         
         inputs.forEach(input => {
@@ -289,76 +692,107 @@ function atualizarProgresso() {
             if ((input.type === 'text' || input.tagName === 'TEXTAREA') && input.value.trim()) respondida = true;
         });
         
-        if (respondida) perguntasRespondidas++;
+        if (respondida) {
+            container.classList.add('respondida');
+            perguntasRespondidas++;
+        } else {
+            container.classList.remove('respondida');
+        }
     });
     
-    const progresso = Math.round((perguntasRespondidas / totalPerguntas) * 100);
-    
+    const progresso = Math.round((perguntasRespondidas / TOTAL_PERGUNTAS) * 100);
     document.getElementById('barra-progresso').style.width = progresso + '%';
     document.getElementById('progresso-atual').textContent = perguntasRespondidas;
 }
 
-// Atualizar valor do range slider
+// Range sliders
 document.querySelectorAll('input[type="range"]').forEach(slider => {
-    const id = slider.id.replace('range_', 'valor_');
-    const valorSpan = document.getElementById(id);
+    const valorDisplay = document.getElementById(slider.id.replace('range_', 'valor_'));
     
-    slider.addEventListener('input', function() {
-        valorSpan.textContent = this.value;
-        atualizarProgresso();
-    });
-});
-
-// Ativar emoji buttons
-document.querySelectorAll('.emoji-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        // Remover ativo de outros emojis do mesmo grupo
-        const name = this.previousElementSibling.name;
-        document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
-            input.nextElementSibling.classList.remove('active');
-        });
+    if (valorDisplay) {
+        valorDisplay.textContent = slider.value;
         
-        // Ativar este emoji
-        this.classList.add('active');
-        atualizarProgresso();
-    });
+        slider.addEventListener('input', function() {
+            valorDisplay.textContent = this.value;
+            atualizarProgresso();
+        });
+    }
 });
 
-// Monitorar mudanças em todos os inputs
+// Monitorar todos os inputs
 document.querySelectorAll('.pergunta-input').forEach(input => {
     input.addEventListener('change', atualizarProgresso);
     input.addEventListener('input', atualizarProgresso);
 });
 
-// Validação do formulário
+// Envio do formulário
 document.getElementById('form-pesquisa').addEventListener('submit', function(e) {
+    console.log('📤 Enviando formulário profissional...');
+    
     const perguntasObrigatorias = document.querySelectorAll('.pergunta-input[required]');
     let todasRespondidas = true;
+    let primeiraNaoRespondida = null;
     
     perguntasObrigatorias.forEach(input => {
+        let grupoRespondido = false;
+        
         if (input.type === 'radio') {
             const name = input.name;
             const radiosGrupo = document.querySelectorAll(`input[name="${name}"]`);
-            const algumSelecionado = Array.from(radiosGrupo).some(radio => radio.checked);
-            if (!algumSelecionado) todasRespondidas = false;
-        } else if (!input.value.trim()) {
+            grupoRespondido = Array.from(radiosGrupo).some(radio => radio.checked);
+        } else if (input.type === 'range') {
+            grupoRespondido = true;
+        } else {
+            grupoRespondido = input.value.trim() !== '';
+        }
+        
+        if (!grupoRespondido) {
             todasRespondidas = false;
+            if (!primeiraNaoRespondida) {
+                primeiraNaoRespondida = input.closest('.pergunta-container');
+            }
         }
     });
     
     if (!todasRespondidas) {
         e.preventDefault();
+        
+        if (primeiraNaoRespondida) {
+            primeiraNaoRespondida.style.border = '2px solid var(--accent-color)';
+            primeiraNaoRespondida.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+            
+            setTimeout(() => {
+                primeiraNaoRespondida.style.border = '';
+            }, 3000);
+        }
+        
         alert('Por favor, responda todas as perguntas obrigatórias antes de enviar.');
-        return;
+        return false;
+    }
+    
+    // Debug dos dados
+    const formData = new FormData(this);
+    console.log('📋 Dados sendo enviados:');
+    for (let [key, value] of formData.entries()) {
+        console.log(`   ${key}: "${value}"`);
     }
     
     // Animação de envio
-    const btnEnviar = this.querySelector('.btn-enviar');
-    btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
+    const btnEnviar = document.getElementById('btn-enviar');
+    btnEnviar.innerHTML = '<div class="loading-spinner"></div> Enviando...';
     btnEnviar.disabled = true;
+    
+    console.log('✅ Formulário validado - enviando...');
+    return true;
 });
 
-// Inicializar progresso
-atualizarProgresso();
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    atualizarProgresso();
+    console.log('✅ Formulário profissional inicializado');
+});
 </script>
 {% endblock %}

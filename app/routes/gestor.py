@@ -17,7 +17,14 @@ def dashboard():
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
     busca = request.args.get('busca', '').strip()
-    print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}'")
+    status = request.args.get('status', '')  # NOVO FILTRO
+    produto_id = request.args.get('produto_id', '')  # NOVO FILTRO DE PRODUTO
+    
+    print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}', status='{status}', produto_id='{produto_id}'")
+    
+    # === BUSCAR PRODUTOS PARA O DROPDOWN ===
+    query_produtos = "SELECT id, nome FROM tipos_produtos ORDER BY nome"
+    produtos = execute_query(query_produtos, fetch=True) or []
     
     # Construir condições WHERE baseadas nos filtros
     condicoes_where = []
@@ -42,6 +49,20 @@ def dashboard():
         )""")
         busca_param = f"%{busca}%"
         params_base.extend([busca_param, busca_param, busca_param, busca_param])
+    
+    # NOVO: Filtro de status
+    if status:
+        if status == 'respondida':
+            condicoes_where.append("p.respondida = TRUE")
+        elif status == 'ativa':
+            condicoes_where.append("p.respondida = FALSE AND p.data_expiracao > NOW()")
+        elif status == 'expirada':
+            condicoes_where.append("p.respondida = FALSE AND p.data_expiracao <= NOW()")
+    
+    # NOVO: Filtro de produto
+    if produto_id:
+        condicoes_where.append("p.tipo_produto_id = %s")
+        params_base.append(produto_id)
     
     # Montar cláusula WHERE
     where_clause = " AND ".join(condicoes_where) if condicoes_where else "1=1"
@@ -83,8 +104,20 @@ def dashboard():
             metricas[key] = 0
     
     # === MÉTRICAS POR PRODUTO COM FILTROS ===
+    # Ajustar query para não duplicar filtro de produto nas estatísticas por produto
+    where_clause_produto = where_clause
+    params_produto = params_base.copy()
+    
+    # Se há filtro de produto, removê-lo das stats por produto para mostrar comparação
+    if produto_id:
+        # Remover a condição de produto da WHERE clause
+        condicoes_sem_produto = [cond for cond in condicoes_where if not cond.startswith("p.tipo_produto_id")]
+        where_clause_produto = " AND ".join(condicoes_sem_produto) if condicoes_sem_produto else "1=1"
+        params_produto = params_base[:-1]  # Remover último parâmetro (produto_id)
+    
     query_por_produto = f"""
     SELECT 
+        tp.id,
         tp.nome,
         COUNT(p.id) as total,
         SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
@@ -110,12 +143,12 @@ def dashboard():
     LEFT JOIN usuarios u ON p.agente_id = u.id
     LEFT JOIN respostas r ON p.id = r.pesquisa_id AND r.resposta_texto IN ('Muito Satisfeito', 'Satisfeito', 'Neutro', 'Insatisfeito', 'Muito Insatisfeito')
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
-    WHERE p.id IS NULL OR ({where_clause})
+    WHERE p.id IS NULL OR ({where_clause_produto})
     GROUP BY tp.id, tp.nome
     ORDER BY tp.nome
     """
     
-    por_produto = execute_query(query_por_produto, params_base, fetch=True) or []
+    por_produto = execute_query(query_por_produto, params_produto, fetch=True) or []
     
     # === MÉTRICAS POR AGENTE COM FILTROS ===
     query_por_agente = f"""
@@ -162,16 +195,31 @@ def dashboard():
         meio = inicio + (fim - inicio) / 2
         meio_str = meio.strftime('%Y-%m-%d')
         
-        params_busca_periodo = params_base[2:] if busca else []
-        
-        periodo_1_params = [data_inicio, meio_str] + params_busca_periodo
-        periodo_2_params = [meio_str, data_fim] + params_busca_periodo
+        # Ajustar parâmetros para incluir outros filtros
+        params_extras = []
+        where_extra = ""
         
         if busca:
-            query_periodo_1 += f" AND ({condicoes_where[2]})"
-            query_periodo_2 = query_periodo_1.replace(data_inicio, meio_str).replace(meio_str, data_fim)
-        else:
-            query_periodo_2 = query_periodo_1.replace(data_inicio, meio_str).replace(meio_str, data_fim)
+            where_extra += f" AND (p.codigo_cliente LIKE %s OR p.nome_cliente LIKE %s OR p.nome_treinamento LIKE %s OR u.nome LIKE %s)"
+            params_extras.extend([busca_param, busca_param, busca_param, busca_param])
+        
+        if status:
+            if status == 'respondida':
+                where_extra += " AND p.respondida = TRUE"
+            elif status == 'ativa':
+                where_extra += " AND p.respondida = FALSE AND p.data_expiracao > NOW()"
+            elif status == 'expirada':
+                where_extra += " AND p.respondida = FALSE AND p.data_expiracao <= NOW()"
+        
+        if produto_id:
+            where_extra += " AND p.tipo_produto_id = %s"
+            params_extras.append(produto_id)
+        
+        periodo_1_params = [data_inicio, meio_str] + params_extras
+        periodo_2_params = [meio_str, data_fim] + params_extras
+        
+        query_periodo_1 += where_extra
+        query_periodo_2 = query_periodo_1.replace(f"'>= %s AND DATE(p.created_at) <= %s'", f"'>= %s AND DATE(p.created_at) <= %s'")
         
         esta_semana_result = execute_query(query_periodo_1, periodo_1_params, fetch=True)
         semana_passada_result = execute_query(query_periodo_2, periodo_2_params, fetch=True)
@@ -180,7 +228,26 @@ def dashboard():
         mes_passado = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
         
     else:
-        # Sem filtro: usar períodos relativos normais
+        # Sem filtro de data: usar períodos relativos normais
+        where_extra = ""
+        params_extras = []
+        
+        if busca:
+            where_extra += f" AND (p.codigo_cliente LIKE %s OR p.nome_cliente LIKE %s OR p.nome_treinamento LIKE %s OR u.nome LIKE %s)"
+            params_extras.extend([busca_param, busca_param, busca_param, busca_param])
+        
+        if status:
+            if status == 'respondida':
+                where_extra += " AND p.respondida = TRUE"
+            elif status == 'ativa':
+                where_extra += " AND p.respondida = FALSE AND p.data_expiracao > NOW()"
+            elif status == 'expirada':
+                where_extra += " AND p.respondida = FALSE AND p.data_expiracao <= NOW()"
+        
+        if produto_id:
+            where_extra += " AND p.tipo_produto_id = %s"
+            params_extras.append(produto_id)
+        
         query_esta_semana = f"""
         SELECT 
             COUNT(*) as criadas,
@@ -192,19 +259,18 @@ def dashboard():
         FROM pesquisas p
         LEFT JOIN usuarios u ON p.agente_id = u.id
         WHERE YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)
-        """ + (f" AND ({condicoes_where[0]})" if busca else "")
+        {where_extra}
+        """
         
         query_semana_passada = query_esta_semana.replace("YEARWEEK(CURDATE(), 1)", "YEARWEEK(CURDATE(), 1) - 1")
         query_este_mes = query_esta_semana.replace("YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)", 
                                                   "YEAR(p.created_at) = YEAR(CURDATE()) AND MONTH(p.created_at) = MONTH(CURDATE())")
         query_mes_passado = query_este_mes.replace("MONTH(CURDATE())", "MONTH(CURDATE() - INTERVAL 1 MONTH)").replace("YEAR(CURDATE())", "YEAR(CURDATE() - INTERVAL 1 MONTH)")
         
-        params_busca = [busca_param, busca_param, busca_param, busca_param] if busca else []
-        
-        esta_semana_result = execute_query(query_esta_semana, params_busca, fetch=True)
-        semana_passada_result = execute_query(query_semana_passada, params_busca, fetch=True)
-        este_mes_result = execute_query(query_este_mes, params_busca, fetch=True)
-        mes_passado_result = execute_query(query_mes_passado, params_busca, fetch=True)
+        esta_semana_result = execute_query(query_esta_semana, params_extras, fetch=True)
+        semana_passada_result = execute_query(query_semana_passada, params_extras, fetch=True)
+        este_mes_result = execute_query(query_este_mes, params_extras, fetch=True)
+        mes_passado_result = execute_query(query_mes_passado, params_extras, fetch=True)
         
         este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
         mes_passado = mes_passado_result[0] if mes_passado_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
@@ -373,7 +439,8 @@ def dashboard():
     
     return render_template('gestor/dashboard.html', 
                          metricas=metricas_completas, 
-                         pesquisas=pesquisas)
+                         pesquisas=pesquisas,
+                         produtos=produtos)  # PASSAR PRODUTOS PARA O TEMPLATE
 
 @bp.route('/detalhes/<int:pesquisa_id>')
 @gestor_required

@@ -37,35 +37,64 @@ def responder_pesquisa(pesquisa_uuid):
     
     perguntas = execute_query(query_perguntas, (pesquisa['tipo_produto_id'],), fetch=True) or []
     
+    # PROCESSAR OPÇÕES JSON DAS PERGUNTAS
+    import json
+    for pergunta in perguntas:
+        if pergunta['opcoes']:
+            try:
+                # Converter string JSON para lista Python
+                pergunta['opcoes'] = json.loads(pergunta['opcoes'])
+            except (json.JSONDecodeError, TypeError):
+                # Se não conseguir processar, deixar como lista vazia
+                pergunta['opcoes'] = []
+        else:
+            pergunta['opcoes'] = []
+    
     # Garantir foto padrão se agente não tiver foto
     if not pesquisa['agente_foto']:
         pesquisa['agente_foto'] = '/static/uploads/avatars/default-avatar.png'
     
     return render_template('cliente/formulario.html', pesquisa=pesquisa, perguntas=perguntas)
 
-# SUBSTITUIR a função enviar_resposta() no arquivo: app/routes/cliente.py
-# Localizar a função atual e substituir por esta versão com IA integrada
-
 @bp.route('/<pesquisa_uuid>/enviar', methods=['POST'])
 def enviar_resposta(pesquisa_uuid):
     try:
+        print(f"🔍 === DEBUG INÍCIO ===")
+        print(f"📋 Processando pesquisa: {pesquisa_uuid}")
+        print(f"📋 request.form: {dict(request.form)}")
+        print(f"📋 request.method: {request.method}")
+        print(f"📋 request.content_type: {request.content_type}")
+        
+        # Verificar se tem dados
+        if not request.form:
+            print("❌ ERRO: request.form vazio!")
+            print(f"📋 request.values: {dict(request.values)}")
+            print(f"📋 request.data: {request.data}")
+            return "Erro: Formulário vazio", 400
+        
         # Buscar pesquisa
         query = "SELECT id FROM pesquisas WHERE uuid = %s AND respondida = FALSE"
         result = execute_query(query, (pesquisa_uuid,), fetch=True)
         
         if not result:
+            print("❌ Pesquisa não encontrada ou já respondida")
             return "Pesquisa não encontrada ou já respondida", 404
         
         pesquisa_id = result[0]['id']
+        print(f"✅ Pesquisa ID: {pesquisa_id}")
         
-        # Coletar e salvar respostas
-        respostas_processamento = []  # Para análise de IA
+        # === PROCESSAMENTO DAS RESPOSTAS ===
+        respostas_processamento = []
+        respostas_salvas = 0
         
         for campo, valor in request.form.items():
+            print(f"🔍 Campo: '{campo}' = '{valor}'")
+            
             if campo.startswith('pergunta_') and valor.strip():
                 pergunta_id = campo.replace('pergunta_', '')
+                print(f"   📋 Pergunta ID: {pergunta_id}")
                 
-                # Buscar informações da pergunta para classificação
+                # Buscar informações da pergunta
                 query_pergunta = """
                 SELECT p.*, tp.nome as tipo_nome
                 FROM perguntas p
@@ -76,25 +105,29 @@ def enviar_resposta(pesquisa_uuid):
                 
                 if pergunta_info:
                     pergunta_data = pergunta_info[0]
+                    print(f"   📄 Pergunta: {pergunta_data['texto']}")
+                    print(f"   🏷️ Tipo: {pergunta_data['tipo_pergunta_id']}")
                     
-                    # Determinar tipo de resposta
+                    # === DETERMINAR TIPO E SALVAR ===
                     if valor.replace('.', '').replace(',', '').isdigit():
-                        # Resposta numérica (escala)
+                        # RESPOSTA NUMÉRICA (ESCALA)
                         query_resposta = """
                         INSERT INTO respostas (pesquisa_id, pergunta_id, resposta_numerica)
                         VALUES (%s, %s, %s)
                         """
-                        params = (pesquisa_id, pergunta_id, float(valor.replace(',', '.')))
+                        valor_numerico = float(valor.replace(',', '.'))
+                        params = (pesquisa_id, pergunta_id, valor_numerico)
                         
-                        # Adicionar para processamento IA
                         respostas_processamento.append({
                             'tipo': 'escala_numerica',
-                            'valor': valor,
+                            'valor': str(valor_numerico),
                             'pergunta': pergunta_data['texto']
                         })
                         
+                        print(f"   📊 Salvando como numérica: {valor_numerico}")
+                        
                     else:
-                        # Resposta texto
+                        # RESPOSTA TEXTO
                         query_resposta = """
                         INSERT INTO respostas (pesquisa_id, pergunta_id, resposta_texto)
                         VALUES (%s, %s, %s)
@@ -104,23 +137,35 @@ def enviar_resposta(pesquisa_uuid):
                         # Classificar tipo de texto para IA
                         tipo_pergunta = pergunta_data.get('tipo_nome', '').lower()
                         
-                        if 'satisfacao' in tipo_pergunta or valor in ['Muito Satisfeito', 'Satisfeito', 'Neutro', 'Insatisfeito', 'Muito Insatisfeito']:
+                        if valor in ['Muito Satisfeito', 'Satisfeito', 'Neutro', 'Insatisfeito', 'Muito Insatisfeito']:
                             tipo_resposta = 'escala_satisfacao'
                         elif valor.lower() in ['sim', 'não', 'yes', 'no']:
                             tipo_resposta = 'sim_nao'
                         else:
                             tipo_resposta = 'texto_livre'
                         
-                        # Adicionar para processamento IA
                         respostas_processamento.append({
                             'tipo': tipo_resposta,
                             'valor': valor,
                             'pergunta': pergunta_data['texto']
                         })
-                
+                        
+                        print(f"   📝 Salvando como texto ({tipo_resposta}): {valor}")
+                    
+                    # Executar INSERT
                     execute_query(query_resposta, params)
+                    respostas_salvas += 1
+                    print(f"   ✅ Resposta salva no banco!")
+                    
+                else:
+                    print(f"   ❌ Pergunta {pergunta_id} não encontrada no banco")
+            else:
+                print(f"   ⭕ Campo ignorado (não é pergunta ou está vazio)")
         
-        # Marcar pesquisa como respondida
+        print(f"💾 TOTAL RESPOSTAS SALVAS: {respostas_salvas}")
+        print(f"🤖 RESPOSTAS PARA IA: {len(respostas_processamento)}")
+        
+        # === MARCAR PESQUISA COMO RESPONDIDA ===
         query_update = """
         UPDATE pesquisas 
         SET respondida = TRUE, data_resposta = NOW(), ip_resposta = %s
@@ -129,84 +174,117 @@ def enviar_resposta(pesquisa_uuid):
         
         ip_cliente = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR'))
         execute_query(query_update, (ip_cliente, pesquisa_id))
+        print(f"✅ Pesquisa {pesquisa_id} marcada como respondida")
         
-        # === NOVA FUNCIONALIDADE: ANÁLISE DE IA ===
-        try:
-            print(f"🤖 Iniciando análise de IA para pesquisa {pesquisa_id}...")
+        # === ANÁLISE DE IA ===
+        if respostas_processamento:
+            print(f"🤖 === INICIANDO ANÁLISE DE IA ===")
+            print(f"📋 Dados para análise: {respostas_processamento}")
             
-            # Importar serviços
-            from app.services.sentiment_analyzer import SentimentAnalyzer
-            from app.services.email_service import EmailService
-            
-            # Processar com IA
-            analyzer = SentimentAnalyzer()
-            resultado_analise = analyzer.calcular_pontuacao_hibrida(respostas_processamento)
-            
-            print(f"   Sentimento: {resultado_analise['sentimento_geral']}")
-            print(f"   Pontuação: {resultado_analise['pontuacao_hibrida']}")
-            print(f"   Deve alertar: {resultado_analise['deve_alertar']}")
-            
-            # Salvar análise no banco
-            query_analise = """
-            INSERT INTO analises_sentimento 
-            (pesquisa_id, resposta_consolidada, sentimento, confianca, pontuacao_hibrida, 
-             motivo_insatisfacao, modelo_usado)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            
-            execute_query(query_analise, (
-                pesquisa_id,
-                resultado_analise['texto_consolidado'][:1000],  # Limitar tamanho
-                resultado_analise['sentimento_geral'],
-                resultado_analise['confianca_geral'],
-                resultado_analise['pontuacao_hibrida'],
-                resultado_analise['motivo_insatisfacao'],
-                'cardiffnlp/twitter-xlm-roberta-base-sentiment'
-            ))
-            
-            print(f"✅ Análise salva no banco")
-            
-            # Enviar email se detectar insatisfação
-            if resultado_analise['deve_alertar']:
-                print(f"🚨 Insatisfação detectada! Enviando alertas...")
-                
-                email_service = EmailService()
-                resultado_email = email_service.enviar_alerta_insatisfacao(
-                    pesquisa_id, 
-                    resultado_analise
-                )
-                
-                if resultado_email['sucesso']:
-                    print(f"📧 {resultado_email['emails_enviados']} email(s) enviado(s) com sucesso!")
-                else:
-                    print(f"❌ Erro no envio de emails: {resultado_email.get('erro', 'Erro desconhecido')}")
-            else:
-                print(f"✅ Cliente satisfeito - nenhum alerta necessário")
-                
-        except Exception as e:
-            # Se a IA falhar, não quebrar o fluxo principal
-            print(f"⚠️ Erro na análise de IA (pesquisa salva normalmente): {str(e)}")
-            
-            # Registrar erro no log (opcional)
             try:
-                error_query = """
+                from app.services.sentiment_analyzer import SentimentAnalyzer
+                from app.services.email_service import EmailService
+                
+                # Processar com IA
+                analyzer = SentimentAnalyzer()
+                resultado_analise = analyzer.calcular_pontuacao_hibrida(respostas_processamento)
+                
+                print(f"🎯 === RESULTADO DA IA ===")
+                print(f"   Sentimento: {resultado_analise['sentimento_geral']}")
+                print(f"   Pontuação: {resultado_analise.get('pontuacao_hibrida', 0)}")
+                print(f"   Confiança: {resultado_analise.get('confianca_geral', 0.5)}")
+                print(f"   Deve alertar: {resultado_analise.get('deve_alertar', False)}")
+                print(f"   Motivo: {resultado_analise.get('motivo_insatisfacao', 'N/A')}")
+                
+                # Salvar análise no banco
+                query_analise = """
                 INSERT INTO analises_sentimento 
                 (pesquisa_id, resposta_consolidada, sentimento, confianca, pontuacao_hibrida, motivo_insatisfacao)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """
-                execute_query(error_query, (
+                
+                execute_query(query_analise, (
                     pesquisa_id,
-                    f"Erro na análise: {str(e)}",
+                    resultado_analise.get('texto_consolidado', '')[:1000],
+                    resultado_analise['sentimento_geral'],
+                    resultado_analise.get('confianca_geral', 0.5),
+                    resultado_analise.get('pontuacao_hibrida', 0),
+                    resultado_analise.get('motivo_insatisfacao', '')
+                ))
+                
+                print(f"✅ Análise IA salva no banco")
+                
+                # === ENVIO DE EMAIL SE NECESSÁRIO ===
+                if resultado_analise.get('deve_alertar', False):
+                    print(f"🚨 === INSATISFAÇÃO DETECTADA! ===")
+                    
+                    try:
+                        email_service = EmailService()
+                        resultado_email = email_service.enviar_alerta_insatisfacao(
+                            pesquisa_id, 
+                            resultado_analise
+                        )
+                        
+                        if resultado_email.get('sucesso', False):
+                            print(f"📧 ✅ {resultado_email.get('emails_enviados', 0)} email(s) enviado(s)!")
+                        else:
+                            print(f"📧 ❌ Erro no envio: {resultado_email.get('erro', 'Erro desconhecido')}")
+                            
+                    except Exception as e:
+                        print(f"📧 ⚠️ Erro no serviço de email: {str(e)}")
+                        
+                else:
+                    print(f"✅ Cliente satisfeito - nenhum alerta necessário")
+                    
+            except Exception as e:
+                print(f"🤖 ⚠️ Erro na IA: {str(e)}")
+                
+                # Salvar erro no banco para auditoria
+                try:
+                    error_query = """
+                    INSERT INTO analises_sentimento 
+                    (pesquisa_id, resposta_consolidada, sentimento, confianca, pontuacao_hibrida, motivo_insatisfacao)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                    execute_query(error_query, (
+                        pesquisa_id,
+                        f"Erro na análise: {str(e)}",
+                        'neutral',
+                        0.0,
+                        0,
+                        f"Erro no processamento: {str(e)}"
+                    ))
+                    print(f"📋 Erro registrado no banco para auditoria")
+                except:
+                    print(f"📋 ⚠️ Não foi possível registrar o erro no banco")
+        else:
+            print(f"🤖 ⚠️ Nenhuma resposta para analisar - IA não executada")
+            
+            # Salvar análise vazia
+            try:
+                query_analise_vazia = """
+                INSERT INTO analises_sentimento 
+                (pesquisa_id, resposta_consolidada, sentimento, confianca, pontuacao_hibrida, motivo_insatisfacao)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                execute_query(query_analise_vazia, (
+                    pesquisa_id,
+                    "Nenhuma resposta processada",
                     'neutral',
                     0.0,
                     0,
-                    f"Erro no processamento: {str(e)}"
+                    "Formulário sem respostas válidas"
                 ))
+                print(f"📋 Análise vazia registrada")
             except:
-                pass  # Se nem o log der certo, ignorar
+                pass
         
+        print(f"🎉 === PROCESSAMENTO CONCLUÍDO ===")
         return render_template('cliente/sucesso.html')
         
     except Exception as e:
-        print(f"❌ Erro geral ao processar resposta: {str(e)}")
-        return f"Erro ao processar resposta: {str(e)}", 500
+        print(f"❌ === ERRO GERAL ===")
+        print(f"Erro: {str(e)}")
+        import traceback
+        print(f"Stack: {traceback.format_exc()}")
+        return f"Erro interno: {str(e)}", 500

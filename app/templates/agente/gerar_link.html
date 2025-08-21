@@ -19,15 +19,15 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nome do Cliente *</label>
-                        <input type="text" class="form-control" name="nome_cliente" required>
+                        <input type="text" class="form-control" name="nome_cliente" id="nome_cliente" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nome do Treinamento *</label>
-                        <input type="text" class="form-control" name="nome_treinamento" required>
+                        <input type="text" class="form-control" name="nome_treinamento" id="nome_treinamento" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Tipo de Produto *</label>
-                        <select class="form-control" name="tipo_produto_id" required>
+                        <select class="form-control" name="tipo_produto_id" id="tipo_produto" required>
                             <option value="">Selecione...</option>
                             <option value="1">Servidor na Nuvem</option>
                             <option value="2">Time is Money</option>
@@ -60,25 +60,51 @@
 <div id="resultado" class="mt-4" style="display:none;">
     <div class="alert alert-success">
         <h5>✅ Link gerado com sucesso!</h5>
-        <div class="mb-2">
-            <strong>Link:</strong><br>
+        
+        <!-- LINK GERADO -->
+        <div class="mb-3">
+            <strong>Link da Pesquisa:</strong><br>
             <div class="input-group">
                 <input type="text" id="linkGerado" class="form-control" readonly>
-                <button class="btn btn-outline-secondary" onclick="copiarLink()">📋 Copiar</button>
+                <button class="btn btn-outline-secondary" onclick="copiarLink()">📋 Copiar Link</button>
             </div>
         </div>
-        <p><strong>Expira em:</strong> <span id="dataExpiracao"></span></p>
+        
+        <!-- MENSAGEM PARA ENVIO -->
+        <div class="mb-3">
+            <strong>📱 Mensagem para WhatsApp/Email:</strong>
+            <div class="border rounded p-3 bg-light mt-2">
+                <textarea id="mensagemEnvio" class="form-control border-0 bg-transparent" rows="8" readonly style="resize: none;"></textarea>
+            </div>
+            <div class="mt-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="copiarMensagem()">📋 Copiar Mensagem</button>
+                <button class="btn btn-outline-success btn-sm" onclick="abrirWhatsApp()">📱 Abrir WhatsApp</button>
+            </div>
+        </div>
+        
+        <div class="text-muted small">
+            <strong>⏰ Expira em:</strong> <span id="dataExpiracao"></span>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+let linkGeradoAtual = '';
+let nomeClienteAtual = '';
+let tipoProdutoAtual = '';
+
 document.getElementById('formGerarLink').onsubmit = function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
     const data = Object.fromEntries(formData);
+    
+    // Guardar dados para usar na mensagem
+    nomeClienteAtual = data.nome_cliente;
+    const tipoSelect = document.getElementById('tipo_produto');
+    tipoProdutoAtual = tipoSelect.options[tipoSelect.selectedIndex].text;
     
     fetch('/agente/gerar-link', {
         method: 'POST',
@@ -88,9 +114,20 @@ document.getElementById('formGerarLink').onsubmit = function(e) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('linkGerado').value = data.link;
+            linkGeradoAtual = data.link;
+            document.getElementById('linkGerado').value = linkGeradoAtual;
             document.getElementById('dataExpiracao').textContent = data.expiracao;
+            
+            // Gerar mensagem personalizada
+            gerarMensagemEnvio();
+            
             document.getElementById('resultado').style.display = 'block';
+            
+            // Scroll suave para o resultado
+            document.getElementById('resultado').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
         } else {
             alert('Erro: ' + data.error);
         }
@@ -100,11 +137,66 @@ document.getElementById('formGerarLink').onsubmit = function(e) {
     });
 };
 
+function gerarMensagemEnvio() {
+    const mensagem = `Olá, ${nomeClienteAtual}!
+
+Esperamos que tenha aproveitado o treinamento de ${tipoProdutoAtual}. 
+Para continuarmos melhorando, sua opinião é fundamental.
+
+${linkGeradoAtual}
+
+⏱️ Leva apenas 2 minutos
+🔒 Respostas confidenciais
+
+Obrigado(a)!`;
+
+    document.getElementById('mensagemEnvio').value = mensagem;
+}
+
 function copiarLink() {
     const link = document.getElementById('linkGerado');
     link.select();
     document.execCommand('copy');
-    alert('Link copiado para a área de transferência!');
+    
+    // Feedback visual
+    const botao = event.target;
+    const textoOriginal = botao.textContent;
+    botao.textContent = '✅ Copiado!';
+    botao.classList.add('btn-success');
+    botao.classList.remove('btn-outline-secondary');
+    
+    setTimeout(() => {
+        botao.textContent = textoOriginal;
+        botao.classList.remove('btn-success');
+        botao.classList.add('btn-outline-secondary');
+    }, 2000);
+}
+
+function copiarMensagem() {
+    const mensagem = document.getElementById('mensagemEnvio');
+    mensagem.select();
+    document.execCommand('copy');
+    
+    // Feedback visual
+    const botao = event.target;
+    const textoOriginal = botao.textContent;
+    botao.textContent = '✅ Copiado!';
+    botao.classList.add('btn-success');
+    botao.classList.remove('btn-outline-primary');
+    
+    setTimeout(() => {
+        botao.textContent = textoOriginal;
+        botao.classList.remove('btn-success');
+        botao.classList.add('btn-outline-primary');
+    }, 2000);
+}
+
+function abrirWhatsApp() {
+    const mensagem = document.getElementById('mensagemEnvio').value;
+    const mensagemCodificada = encodeURIComponent(mensagem);
+    const urlWhatsApp = `https://wa.me/?text=${mensagemCodificada}`;
+    
+    window.open(urlWhatsApp, '_blank');
 }
 </script>
 {% endblock %}
