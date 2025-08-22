@@ -8,10 +8,10 @@ app = create_app()
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("🚀 SISTEMA DE PESQUISA DE SATISFAÇÃO")
+    print("SISTEMA DE PESQUISA DE SATISFACAO")
     print("=" * 50)
-    print(f"🌐 Acesse: http://localhost:5000")
-    print(f"🔧 Teste conexão: http://localhost:5000/teste-conexao")
+    print(f"Acesse: http://localhost:5000")
+    print(f"Teste conexao: http://localhost:5000/teste-conexao")
     print("=" * 50)
     
     app.run(
