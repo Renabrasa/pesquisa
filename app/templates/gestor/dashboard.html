@@ -203,18 +203,42 @@
     opacity: 1;
 }
 
-/* Garantir que o campo de busca sempre funcione */
-#buscar {
+/* CORREÇÃO: Garantir que TODOS os campos de filtro funcionem */
+#buscar, #statusFiltro, #produtoFiltro, #dataInicio, #dataFim {
     pointer-events: auto !important;
-    user-select: text !important;
-    cursor: text !important;
+    user-select: auto !important;
+    cursor: pointer !important;
     background-color: white !important;
+    z-index: 1000 !important;
+    position: relative !important;
+}
+
+#buscar {
+    cursor: text !important;
 }
 
 #buscar:disabled, #buscar[readonly] {
     pointer-events: auto !important;
     background-color: white !important;
     opacity: 1 !important;
+}
+
+/* CORREÇÃO: Evitar sobreposição dos pseudo-elementos */
+.card-body::before, .card-body::after, .card::before, .card::after {
+    z-index: -1 !important;
+    pointer-events: none !important;
+}
+
+/* CORREÇÃO: Garantir que os containers dos filtros não bloqueiem */
+.card-body, .form-control, .form-select {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* DEBUG: Highlight dos campos para verificar se estão acessíveis */
+#statusFiltro:hover, #produtoFiltro:hover, #dataInicio:hover, #dataFim:hover {
+    border-color: #ff0000 !important;
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
 }
 
 .tag-ativa {
@@ -1229,6 +1253,36 @@ document.addEventListener('DOMContentLoaded', function() {
             campo.addEventListener('change', atualizarIndicadores);
         }
     });
+    
+    // CORREÇÃO: Auto-submit para status (TESTE MAIS ROBUSTO)
+    const statusSelect = document.getElementById('statusFiltro');
+    if (statusSelect) {
+        // Adicionar múltiplos tipos de evento para garantir
+        statusSelect.addEventListener('change', function() {
+            console.log('🔥 CHANGE EVENT - Status mudou para:', this.value);
+            document.getElementById('filtrosForm').submit();
+        });
+        
+        statusSelect.addEventListener('click', function() {
+            console.log('🔥 CLICK EVENT - Status clicado');
+        });
+        
+        // Backup com onchange
+        statusSelect.onchange = function() {
+            console.log('🔥 ONCHANGE - Status mudou para:', this.value);
+            document.getElementById('filtrosForm').submit();
+        };
+        
+        console.log('✅ Event handlers do status configurados (múltiplos tipos)');
+        
+        // Teste direto
+        setTimeout(() => {
+            console.log('🧪 TESTE: StatusFiltro value atual:', statusSelect.value);
+            console.log('🧪 TESTE: StatusFiltro options:', statusSelect.options.length);
+        }, 1000);
+    } else {
+        console.error('❌ Campo statusFiltro não encontrado');
+    }
     
     // Proteção contínua - verificar a cada 3 segundos
     setInterval(protegerCampoBusca, 3000);
