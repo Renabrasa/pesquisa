@@ -3,6 +3,7 @@ from app.utils.database import execute_query
 from app.routes.auth import login_required, gestor_required
 import hashlib
 import json
+from app.utils.upload import save_avatar, delete_avatar, get_default_avatar
 
 bp = Blueprint('gestor', __name__)
 
@@ -802,21 +803,69 @@ def editar_usuario(user_id):
         tipo_usuario = request.form['tipo_usuario']
         ativo = 'ativo' in request.form
         
-        query_update = """
-        UPDATE usuarios 
-        SET nome = %s, email = %s, tipo_usuario = %s, ativo = %s
-        WHERE id = %s
-        """
+        # Verificar se email já existe (exceto o próprio usuário)
+        query_check = "SELECT id FROM usuarios WHERE email = %s AND id != %s"
+        if execute_query(query_check, (email, user_id), fetch=True):
+            flash('E-mail já está sendo usado por outro usuário!', 'error')
+            return redirect(url_for('gestor.editar_usuario', user_id=user_id))
         
-        result = execute_query(query_update, (nome, email, tipo_usuario, ativo, user_id))
+        # Processar upload de foto
+        foto_url = None
+        if 'foto' in request.files:
+            file = request.files['foto']
+            if file and file.filename != '':
+                try:
+                    # Buscar foto atual para deletar depois
+                    query_foto_atual = "SELECT foto_url FROM usuarios WHERE id = %s"
+                    result_foto = execute_query(query_foto_atual, (user_id,), fetch=True)
+                    foto_atual = result_foto[0]['foto_url'] if result_foto else None
+                    
+                    # Salvar nova foto
+                    foto_url = save_avatar(file, user_id)
+                    
+                    if foto_url:
+                        # Deletar foto anterior se não for a padrão
+                        if foto_atual and foto_atual != get_default_avatar():
+                            delete_avatar(foto_atual)
+                    else:
+                        flash('Erro ao fazer upload da foto. Verifique o formato e tamanho.', 'error')
+                        return redirect(url_for('gestor.editar_usuario', user_id=user_id))
+                        
+                except Exception as e:
+                    flash(f'Erro ao processar foto: {str(e)}', 'error')
+                    return redirect(url_for('gestor.editar_usuario', user_id=user_id))
         
-        if result:
-            flash('Usuário atualizado com sucesso!', 'success')
-            return redirect(url_for('gestor.usuarios'))
+        # Preparar query de atualização (com ou sem foto)
+        if foto_url:
+            query_update = """
+            UPDATE usuarios 
+            SET nome = %s, email = %s, tipo_usuario = %s, ativo = %s, foto_url = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            """
+            params = (nome, email, tipo_usuario, ativo, foto_url, user_id)
         else:
-            flash('Erro ao atualizar usuário!', 'error')
+            query_update = """
+            UPDATE usuarios 
+            SET nome = %s, email = %s, tipo_usuario = %s, ativo = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            """
+            params = (nome, email, tipo_usuario, ativo, user_id)
+        
+        try:
+            result = execute_query(query_update, params)
+            
+            if result:
+                flash('Usuário atualizado com sucesso!', 'success')
+                return redirect(url_for('gestor.usuarios'))
+            else:
+                flash('Erro ao atualizar usuário!', 'error')
+                
+        except Exception as e:
+            flash(f'Erro específico: {str(e)}', 'error')
     
-    # Buscar dados do usuário
+    # GET - Buscar dados do usuário
     query = "SELECT * FROM usuarios WHERE id = %s"
     result = execute_query(query, (user_id,), fetch=True)
     
@@ -824,6 +873,10 @@ def editar_usuario(user_id):
         return "Usuário não encontrado", 404
     
     usuario = result[0]
+    
+    # Garantir foto padrão se não tiver
+    if not usuario['foto_url']:
+        usuario['foto_url'] = get_default_avatar()
     
     # Buscar estatísticas do usuário (apenas para agentes)
     estatisticas = {'total_pesquisas': 0, 'pesquisas_respondidas': 0}
