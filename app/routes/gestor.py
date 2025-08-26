@@ -748,7 +748,7 @@ def editar_pergunta(pergunta_id):
 def usuarios():
     """Gerenciar usuários do sistema"""
     query = """
-    SELECT u.*, 
+    SELECT u.foto_url, u.*, 
            COUNT(p.id) as total_pesquisas,
            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as pesquisas_respondidas
     FROM usuarios u

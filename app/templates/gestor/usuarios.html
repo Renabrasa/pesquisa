@@ -61,6 +61,7 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
+                        <th>Foto</th>
                         <th>Nome</th>
                         <th>E-mail</th>
                         <th>Tipo</th>
@@ -74,6 +75,11 @@
                 <tbody>
                     {% for usuario in usuarios %}
                     <tr>
+                        <td>
+                            <img src="{{ usuario.foto_url or '/static/uploads/avatars/default-avatar.png' }}" 
+                                 class="rounded-circle" 
+                                 style="width: 40px; height: 40px; object-fit: cover;">
+                        </td>
                         <td>
                             <strong>{{ usuario.nome }}</strong>
                         </td>
@@ -123,7 +129,7 @@
                     
                     {% if not usuarios %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted">
+                        <td colspan="9" class="text-center text-muted">
                             Nenhum usuário encontrado
                         </td>
                     </tr>
