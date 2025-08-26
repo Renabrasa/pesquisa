@@ -213,6 +213,9 @@ def enviar_resposta(pesquisa_uuid):
                 ))
                 
                 print(f"✅ Análise IA salva no banco")
+                # NOVA LINHA: Marcar como processada pela IA
+                execute_query("UPDATE pesquisas SET ia_processada = TRUE WHERE id = %s", (pesquisa_id,))
+                print(f"✅ Status IA atualizado para pesquisa {pesquisa_id}")
                 
                 # === ENVIO DE EMAIL SE NECESSÁRIO ===
                 if resultado_analise.get('deve_alertar', False):
@@ -276,6 +279,9 @@ def enviar_resposta(pesquisa_uuid):
                     "Formulário sem respostas válidas"
                 ))
                 print(f"📋 Análise vazia registrada")
+                # NOVA LINHA: Marcar como processada (mesmo sendo vazia)
+                execute_query("UPDATE pesquisas SET ia_processada = TRUE WHERE id = %s", (pesquisa_id,))
+                print(f"✅ Status IA atualizado (análise vazia) para pesquisa {pesquisa_id}")
             except:
                 pass
         

@@ -394,6 +394,7 @@ def dashboard():
            as_sent.sentimento,
            as_sent.pontuacao_hibrida,
            as_sent.confianca,
+           p.ia_processada,
            -- Dados de ações
            ai.id as acao_id,
            ai.status as acao_status,

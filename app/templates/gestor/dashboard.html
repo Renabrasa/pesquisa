@@ -976,6 +976,14 @@
                                     {% if pesquisa.sentimento == 'negative' %}
                                         <br><span class="badge bg-danger mt-1">⚠️ Insatisfeito</span>
                                     {% endif %}
+                                        {% if pesquisa.status_pesquisa == 'respondida' %}
+                                    {% if pesquisa.ia_processada %}
+                                            <br><small class="text-muted">🤖</small>
+                                        {% else %}
+                                            <br><small class="text-warning">⏳</small>
+                                        {% endif %}
+                                    {% endif %}
+
                                 </td>
                                 <td>{{ pesquisa.created_at.strftime('%d/%m %H:%M') }}</td>
                                 <td>
