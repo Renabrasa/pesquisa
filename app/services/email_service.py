@@ -167,6 +167,154 @@ class EmailService:
                 'emails_enviados': 0
             }
 
+
+    def enviar_senha_temporaria(self, nome_usuario: str, email_destinatario: str, 
+                          senha_temporaria: str, gestor_nome: str) -> Dict:
+        """
+        Envia email com senha temporária para usuário
+        
+        Args:
+            nome_usuario (str): Nome do usuário que terá a senha resetada
+            email_destinatario (str): Email do usuário
+            senha_temporaria (str): Nova senha temporária gerada
+            gestor_nome (str): Nome do gestor que resetou a senha
+            
+        Returns:
+            dict: Resultado do envio com status e detalhes
+        """
+        
+        try:
+            print(f"📧 [DEBUG] Enviando senha temporária para {email_destinatario}")
+            
+            # === CRIAR CONTEÚDO DO EMAIL ===
+            
+            assunto = f"Nova Senha Temporária - Sistema de Pesquisa"
+            
+            # Versão HTML
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background-color: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                    .content {{ background-color: white; padding: 30px; border: 1px solid #dee2e6; }}
+                    .password-box {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0; }}
+                    .password {{ font-size: 24px; font-weight: bold; color: #007bff; letter-spacing: 2px; }}
+                    .alert {{ background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                    .footer {{ background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #6c757d; border-radius: 0 0 8px 8px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🔑 Nova Senha Temporária</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <p>Olá <strong>{nome_usuario}</strong>,</p>
+                        
+                        <p>Sua senha foi resetada pelo gestor <strong>{gestor_nome}</strong> no Sistema de Pesquisa de Satisfação.</p>
+                        
+                        <div class="password-box">
+                            <p><strong>Sua nova senha temporária é:</strong></p>
+                            <div class="password">{senha_temporaria}</div>
+                        </div>
+                        
+                        <div class="alert">
+                            <strong>⚠️ IMPORTANTE:</strong>
+                            <ul>
+                                <li>Esta é uma senha temporária</li>
+                                <li>Altere sua senha após o primeiro login</li>
+                                <li>Esta senha expira em 30 dias</li>
+                                <li>Use as credenciais: <strong>{email_destinatario}</strong> e a senha acima</li>
+                            </ul>
+                        </div>
+                        
+                        <p>Para acessar o sistema: <a href="{self.app_url}/auth/login">{self.app_url}/auth/login</a></p>
+                        
+                        <p>Se você não solicitou esta alteração, entre em contato com o administrador imediatamente.</p>
+                    </div>
+                    
+                    <div class="footer">
+                        Sistema de Pesquisa de Satisfação<br>
+                        Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Versão texto simples
+            texto_content = f"""
+            Nova Senha Temporária - Sistema de Pesquisa
+            
+            Olá {nome_usuario},
+            
+            Sua senha foi resetada pelo gestor {gestor_nome} no Sistema de Pesquisa de Satisfação.
+            
+            Sua nova senha temporária é: {senha_temporaria}
+            
+            IMPORTANTE:
+            - Esta é uma senha temporária
+            - Altere sua senha após o primeiro login  
+            - Esta senha expira em 30 dias
+            - Use as credenciais: {email_destinatario} e a senha acima
+            
+            Para acessar o sistema: {self.app_url}/auth/login
+            
+            Se você não solicitou esta alteração, entre em contato com o administrador imediatamente.
+            
+            ────────────────────────────────────────
+            Sistema de Pesquisa de Satisfação
+            Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
+            """
+            
+            # === ENVIAR EMAIL ===
+            
+            resultado_envio = self._enviar_email(
+                destinatario=email_destinatario,
+                nome_destinatario=nome_usuario,
+                assunto=assunto,
+                corpo_html=html_content,
+                corpo_texto=texto_content
+            )
+            
+            if resultado_envio['sucesso']:
+                print(f"✅ [DEBUG] Senha temporária enviada com sucesso!")
+                
+                # Registrar no log (opcional - se você tiver tabela de log)
+                # self._registrar_log_email(
+                #     pesquisa_id=None,
+                #     email_destinatario=email_destinatario,
+                #     assunto=assunto,
+                #     sucesso=True,
+                #     erro=None
+                # )
+                
+                return {
+                    'sucesso': True,
+                    'email_enviado': email_destinatario,
+                    'mensagem': 'Senha temporária enviada com sucesso'
+                }
+            else:
+                return {
+                    'sucesso': False,
+                    'erro': resultado_envio.get('erro', 'Erro desconhecido no envio')
+                }
+                
+        except Exception as e:
+            print(f"💥 [DEBUG] Erro ao enviar senha temporária: {str(e)}")
+            return {
+                'sucesso': False,
+                'erro': f'Erro interno: {str(e)}'
+            }
+
+
+
+
     def _buscar_dados_pesquisa(self, pesquisa_id: int) -> Optional[Dict]:
         """Busca dados completos da pesquisa"""
         
@@ -352,504 +500,668 @@ class EmailService:
         }
 
     def _enviar_email(self, destinatario: str, nome_destinatario: str, 
-                    assunto: str, dados_email: Dict) -> Dict:
-        """Envia email profissional com análise detalhada"""
+                assunto: str, dados_email: Dict = None, 
+                corpo_html: str = None, corpo_texto: str = None) -> Dict:
+        """Envia email profissional com análise detalhada OU email simples"""
+        
+        print(f"[DEBUG] === INICIANDO ENVIO DE EMAIL ===")
+        print(f"[DEBUG] Destinatário: {destinatario}")
+        print(f"[DEBUG] Assunto: {assunto}")
+        print(f"[DEBUG] Tipo: {'Alerta' if dados_email else 'Simples'}")
+        
+        # Validar configurações SMTP
+        print(f"[DEBUG] === CONFIGURAÇÕES SMTP ===")
+        print(f"[DEBUG] Servidor: {self.smtp_server}")
+        print(f"[DEBUG] Porta: {self.smtp_port}")
+        print(f"[DEBUG] Username: {self.smtp_username}")
+        print(f"[DEBUG] Remetente: {self.email_remetente}")
+        print(f"[DEBUG] Senha definida: {'SIM' if self.smtp_password else 'NÃO'}")
+        print(f"[DEBUG] Senha length: {len(self.smtp_password) if self.smtp_password else 0}")
+        
+        if not all([self.smtp_server, self.smtp_port, self.smtp_username, self.smtp_password, self.email_remetente]):
+            return {
+                'sucesso': False,
+                'erro': 'Configurações SMTP incompletas no .env'
+            }
         
         try:
-            print(f"📧 [DEBUG] Criando email profissional...")
-            print(f"   Destinatário: {destinatario}")
-            print(f"   Nível: {dados_email['nivel_alerta']}")
-            
-            # === HTML PROFISSIONAL ===
-            
-            html_profissional = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Alerta de Insatisfação - Sistema de Pesquisa</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-                line-height: 1.6;
-                color: #2c3e50;
-                background: #ecf0f1;
-            }}
-            
-            .email-container {{
-                max-width: 650px;
-                margin: 0 auto;
-                background: #ffffff;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            }}
-            
-            .header {{
-                background: linear-gradient(135deg, {dados_email['cor_nivel']} 0%, #8b0000 100%);
-                color: #ffffff;
-                padding: 25px 30px;
-                text-align: center;
-                border-bottom: 3px solid rgba(255,255,255,0.2);
-            }}
-            
-            .header h1 {{
-                font-size: 24px;
-                font-weight: 600;
-                margin-bottom: 8px;
-                letter-spacing: 0.5px;
-            }}
-            
-            .nivel-badge {{
-                display: inline-block;
-                background: rgba(255,255,255,0.15);
-                padding: 6px 16px;
-                border-radius: 20px;
-                font-size: 13px;
-                font-weight: 500;
-                border: 1px solid rgba(255,255,255,0.3);
-                backdrop-filter: blur(10px);
-            }}
-            
-            .urgencia {{
-                font-size: 12px;
-                margin-top: 8px;
-                opacity: 0.9;
-                font-style: italic;
-            }}
-            
-            .content {{
-                padding: 30px;
-            }}
-            
-            .alert-section {{
-                background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
-                border-left: 4px solid #ff8f00;
-                padding: 18px 20px;
-                border-radius: 6px;
-                margin-bottom: 25px;
-            }}
-            
-            .alert-section strong {{
-                color: #e65100;
-                font-weight: 600;
-            }}
-            
-            .info-section {{
-                margin-bottom: 25px;
-            }}
-            
-            .section-title {{
-                font-size: 16px;
-                font-weight: 600;
-                color: #34495e;
-                margin-bottom: 15px;
-                padding-bottom: 8px;
-                border-bottom: 2px solid #ecf0f1;
-                display: flex;
-                align-items: center;
-            }}
-            
-            .section-title::before {{
-                content: '';
-                width: 4px;
-                height: 16px;
-                background: {dados_email['cor_nivel']};
-                margin-right: 10px;
-                border-radius: 2px;
-            }}
-            
-            .client-info {{
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 6px;
-                border: 1px solid #e9ecef;
-            }}
-            
-            .info-grid {{
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 12px;
-                margin-bottom: 10px;
-            }}
-            
-            .info-item {{
-                display: flex;
-                align-items: center;
-            }}
-            
-            .info-label {{
-                font-weight: 600;
-                color: #495057;
-                min-width: 80px;
-                font-size: 13px;
-            }}
-            
-            .info-value {{
-                color: #212529;
-                font-size: 13px;
-                margin-left: 5px;
-            }}
-            
-            .ai-analysis {{
-                background: linear-gradient(135deg, #f0f7ff 0%, #e3f2fd 100%);
-                border: 1px solid #bbdefb;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 0;
-            }}
-            
-            .confidence-bar {{
-                background: #e0e0e0;
-                height: 6px;
-                border-radius: 3px;
-                overflow: hidden;
-                margin: 8px 0;
-            }}
-            
-            .confidence-fill {{
-                background: linear-gradient(90deg, #4caf50 0%, #2e7d32 100%);
-                height: 100%;
-                width: {dados_email['analise']['confianca']}%;
-                transition: width 0.3s ease;
-            }}
-            
-            .excerpt {{
-                background: #ffffff;
-                border: 1px solid #dee2e6;
-                border-left: 3px solid {dados_email['cor_nivel']};
-                padding: 15px;
-                margin: 10px 0;
-                border-radius: 4px;
-            }}
-            
-            .excerpt-text {{
-                font-style: italic;
-                color: #495057;
-                margin-bottom: 8px;
-                line-height: 1.5;
-            }}
-            
-            .excerpt-interpretation {{
-                font-size: 12px;
-                color: #6c757d;
-                font-weight: 500;
-            }}
-            
-            .summary-box {{
-                background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-                border: 1px solid #ffcc02;
-                border-radius: 6px;
-                padding: 18px;
-                margin: 15px 0;
-            }}
-            
-            .summary-title {{
-                font-weight: 600;
-                color: #ef6c00;
-                margin-bottom: 8px;
-                font-size: 14px;
-            }}
-            
-            .summary-text {{
-                color: #bf360c;
-                font-size: 13px;
-                line-height: 1.5;
-            }}
-            
-            .recommendations {{
-                background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
-                border: 1px solid #81c784;
-                border-radius: 6px;
-                padding: 20px;
-                margin: 20px 0;
-            }}
-            
-            .rec-list {{
-                list-style: none;
-                padding: 0;
-            }}
-            
-            .rec-list li {{
-                padding: 6px 0;
-                color: #2e7d32;
-                font-size: 13px;
-                display: flex;
-                align-items: flex-start;
-            }}
-            
-            .rec-list li::before {{
-                content: '▶';
-                color: #4caf50;
-                margin-right: 8px;
-                margin-top: 1px;
-                font-size: 10px;
-            }}
-            
-            .action-button {{
-                display: inline-block;
-                background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%);
-                color: #ffffff !important;
-                padding: 12px 24px;
-                text-decoration: none !important;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 13px;
-                margin: 15px 0;
-                box-shadow: 0 2px 8px rgba(25,118,210,0.3);
-                transition: all 0.2s ease;
-            }}
-            
-            .action-button:hover {{
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(25,118,210,0.4);
-            }}
-            
-            .divider {{
-                height: 1px;
-                background: linear-gradient(90deg, transparent 0%, #bdc3c7 50%, transparent 100%);
-                margin: 25px 0;
-            }}
-            
-            .footer {{
-                background: linear-gradient(135deg, #263238 0%, #37474f 100%);
-                color: #eceff1;
-                padding: 20px 30px;
-                text-align: center;
-                border-top: 1px solid #455a64;
-            }}
-            
-            .footer-main {{
-                font-size: 13px;
-                margin-bottom: 8px;
-                font-weight: 500;
-            }}
-            
-            .footer-timestamp {{
-                font-size: 11px;
-                color: #b0bec5;
-                margin-bottom: 12px;
-            }}
-            
-            .ai-credit {{
-                background: rgba(255,255,255,0.05);
-                border-radius: 20px;
-                padding: 8px 16px;
-                display: inline-block;
-                border: 1px solid rgba(255,255,255,0.1);
-            }}
-            
-            .ai-credit-text {{
-                font-size: 11px;
-                color: #cfd8dc;
-                margin: 0;
-            }}
-            
-            @media (max-width: 600px) {{
-                .email-container {{ margin: 10px; }}
-                .content {{ padding: 20px; }}
-                .info-grid {{ grid-template-columns: 1fr; }}
-                .header {{ padding: 20px; }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="email-container">
-            <div class="header">
-                <h1>ALERTA DE INSATISFAÇÃO</h1>
-                <div class="nivel-badge">NÍVEL: {dados_email['nivel_alerta']}</div>
-                <div class="urgencia">{dados_email['urgencia']}</div>
-            </div>
-            
-            <div class="content">
-                <div class="alert-section">
-                    <strong>Situação Detectada:</strong> Um cliente demonstrou insatisfação significativa com o treinamento realizado. 
-                    Recomenda-se análise imediata e contato direto para resolução.
+            # MODO ORIGINAL: Email de alerta (mantém todo código existente)
+            if dados_email:
+                print(f"[DEBUG] Criando email profissional...")
+                print(f"[DEBUG] Nível: {dados_email['nivel_alerta']}")
+                
+                # === HTML PROFISSIONAL (código existente inalterado) ===
+                html_profissional = f"""
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Alerta de Insatisfação - Sistema de Pesquisa</title>
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #2c3e50;
+                    background: #ecf0f1;
+                }}
+                
+                .email-container {{
+                    max-width: 650px;
+                    margin: 0 auto;
+                    background: #ffffff;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                }}
+                
+                .header {{
+                    background: linear-gradient(135deg, {dados_email['cor_nivel']} 0%, #8b0000 100%);
+                    color: #ffffff;
+                    padding: 25px 30px;
+                    text-align: center;
+                    border-bottom: 3px solid rgba(255,255,255,0.2);
+                }}
+                
+                .header h1 {{
+                    font-size: 24px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                    letter-spacing: 0.5px;
+                }}
+                
+                .nivel-badge {{
+                    display: inline-block;
+                    background: rgba(255,255,255,0.15);
+                    padding: 6px 16px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    border: 1px solid rgba(255,255,255,0.3);
+                    backdrop-filter: blur(10px);
+                }}
+                
+                .urgencia {{
+                    font-size: 12px;
+                    margin-top: 8px;
+                    opacity: 0.9;
+                    font-style: italic;
+                }}
+                
+                .content {{
+                    padding: 30px;
+                }}
+                
+                .alert-section {{
+                    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+                    border-left: 4px solid #ff8f00;
+                    padding: 18px 20px;
+                    border-radius: 6px;
+                    margin-bottom: 25px;
+                }}
+                
+                .alert-section strong {{
+                    color: #e65100;
+                    font-weight: 600;
+                }}
+                
+                .info-section {{
+                    margin-bottom: 25px;
+                }}
+                
+                .section-title {{
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #34495e;
+                    margin-bottom: 15px;
+                    padding-bottom: 8px;
+                    border-bottom: 2px solid #ecf0f1;
+                    display: flex;
+                    align-items: center;
+                }}
+                
+                .section-title::before {{
+                    content: '';
+                    width: 4px;
+                    height: 16px;
+                    background: {dados_email['cor_nivel']};
+                    margin-right: 10px;
+                    border-radius: 2px;
+                }}
+                
+                .client-info {{
+                    background: #f8f9fa;
+                    padding: 20px;
+                    border-radius: 6px;
+                    border: 1px solid #e9ecef;
+                }}
+                
+                .info-grid {{
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 12px;
+                    margin-bottom: 10px;
+                }}
+                
+                .info-item {{
+                    display: flex;
+                    align-items: center;
+                }}
+                
+                .info-label {{
+                    font-weight: 600;
+                    color: #495057;
+                    min-width: 80px;
+                    font-size: 13px;
+                }}
+                
+                .info-value {{
+                    color: #212529;
+                    font-size: 13px;
+                    margin-left: 5px;
+                }}
+                
+                .ai-analysis {{
+                    background: linear-gradient(135deg, #f0f7ff 0%, #e3f2fd 100%);
+                    border: 1px solid #bbdefb;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px 0;
+                }}
+                
+                .confidence-bar {{
+                    background: #e0e0e0;
+                    height: 6px;
+                    border-radius: 3px;
+                    overflow: hidden;
+                    margin: 8px 0;
+                }}
+                
+                .confidence-fill {{
+                    background: linear-gradient(90deg, #4caf50 0%, #2e7d32 100%);
+                    height: 100%;
+                    width: {dados_email['analise']['confianca']}%;
+                    transition: width 0.3s ease;
+                }}
+                
+                .excerpt {{
+                    background: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-left: 3px solid {dados_email['cor_nivel']};
+                    padding: 15px;
+                    margin: 10px 0;
+                    border-radius: 4px;
+                }}
+                
+                .excerpt-text {{
+                    font-style: italic;
+                    color: #495057;
+                    margin-bottom: 8px;
+                    line-height: 1.5;
+                }}
+                
+                .excerpt-interpretation {{
+                    font-size: 12px;
+                    color: #6c757d;
+                    font-weight: 500;
+                }}
+                
+                .summary-box {{
+                    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+                    border: 1px solid #ffcc02;
+                    border-radius: 6px;
+                    padding: 18px;
+                    margin: 15px 0;
+                }}
+                
+                .summary-title {{
+                    font-weight: 600;
+                    color: #ef6c00;
+                    margin-bottom: 8px;
+                    font-size: 14px;
+                }}
+                
+                .summary-text {{
+                    color: #bf360c;
+                    font-size: 13px;
+                    line-height: 1.5;
+                }}
+                
+                .recommendations {{
+                    background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+                    border: 1px solid #81c784;
+                    border-radius: 6px;
+                    padding: 20px;
+                    margin: 20px 0;
+                }}
+                
+                .rec-list {{
+                    list-style: none;
+                    padding: 0;
+                }}
+                
+                .rec-list li {{
+                    padding: 6px 0;
+                    color: #2e7d32;
+                    font-size: 13px;
+                    display: flex;
+                    align-items: flex-start;
+                }}
+                
+                .rec-list li::before {{
+                    content: '▶';
+                    color: #4caf50;
+                    margin-right: 8px;
+                    margin-top: 1px;
+                    font-size: 10px;
+                }}
+                
+                .action-button {{
+                    display: inline-block;
+                    background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%);
+                    color: #ffffff !important;
+                    padding: 12px 24px;
+                    text-decoration: none !important;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    font-size: 13px;
+                    margin: 15px 0;
+                    box-shadow: 0 2px 8px rgba(25,118,210,0.3);
+                    transition: all 0.2s ease;
+                }}
+                
+                .action-button:hover {{
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(25,118,210,0.4);
+                }}
+                
+                .divider {{
+                    height: 1px;
+                    background: linear-gradient(90deg, transparent 0%, #bdc3c7 50%, transparent 100%);
+                    margin: 25px 0;
+                }}
+                
+                .footer {{
+                    background: linear-gradient(135deg, #263238 0%, #37474f 100%);
+                    color: #eceff1;
+                    padding: 20px 30px;
+                    text-align: center;
+                    border-top: 1px solid #455a64;
+                }}
+                
+                .footer-main {{
+                    font-size: 13px;
+                    margin-bottom: 8px;
+                    font-weight: 500;
+                }}
+                
+                .footer-timestamp {{
+                    font-size: 11px;
+                    color: #b0bec5;
+                    margin-bottom: 12px;
+                }}
+                
+                .ai-credit {{
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 20px;
+                    padding: 8px 16px;
+                    display: inline-block;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }}
+                
+                .ai-credit-text {{
+                    font-size: 11px;
+                    color: #cfd8dc;
+                    margin: 0;
+                }}
+                
+                @media (max-width: 600px) {{
+                    .email-container {{ margin: 10px; }}
+                    .content {{ padding: 20px; }}
+                    .info-grid {{ grid-template-columns: 1fr; }}
+                    .header {{ padding: 20px; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="email-container">
+                <div class="header">
+                    <h1>ALERTA DE INSATISFAÇÃO</h1>
+                    <div class="nivel-badge">NÍVEL: {dados_email['nivel_alerta']}</div>
+                    <div class="urgencia">{dados_email['urgencia']}</div>
                 </div>
                 
-                <div class="info-section">
-                    <div class="section-title">Informações do Cliente</div>
-                    <div class="client-info">
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <span class="info-label">Cliente:</span>
-                                <span class="info-value"><strong>{dados_email['cliente']['nome']}</strong></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Código:</span>
-                                <span class="info-value">{dados_email['cliente']['codigo']}</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Treinamento:</span>
-                                <span class="info-value">{dados_email['cliente']['treinamento']}</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Produto:</span>
-                                <span class="info-value">{dados_email['cliente']['produto']}</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Agente:</span>
-                                <span class="info-value">{dados_email['cliente']['agente']}</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Data:</span>
-                                <span class="info-value">{dados_email['cliente']['data_resposta']}</span>
+                <div class="content">
+                    <div class="alert-section">
+                        <strong>Situação Detectada:</strong> Um cliente demonstrou insatisfação significativa com o treinamento realizado. 
+                        Recomenda-se análise imediata e contato direto para resolução.
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">Informações do Cliente</div>
+                        <div class="client-info">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Cliente:</span>
+                                    <span class="info-value"><strong>{dados_email['cliente']['nome']}</strong></span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Código:</span>
+                                    <span class="info-value">{dados_email['cliente']['codigo']}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Treinamento:</span>
+                                    <span class="info-value">{dados_email['cliente']['treinamento']}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Produto:</span>
+                                    <span class="info-value">{dados_email['cliente']['produto']}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Agente:</span>
+                                    <span class="info-value">{dados_email['cliente']['agente']}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Data:</span>
+                                    <span class="info-value">{dados_email['cliente']['data_resposta']}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="info-section">
-                    <div class="section-title">Análise de Inteligência Artificial</div>
-                    <div class="ai-analysis">
-                        <p><strong>Confiabilidade da Análise:</strong> {dados_email['analise']['confianca']}%</p>
-                        <div class="confidence-bar">
-                            <div class="confidence-fill"></div>
+                    
+                    <div class="info-section">
+                        <div class="section-title">Análise de Inteligência Artificial</div>
+                        <div class="ai-analysis">
+                            <p><strong>Confiabilidade da Análise:</strong> {dados_email['analise']['confianca']}%</p>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill"></div>
+                            </div>
+                            
+                            {self._gerar_trechos_html(dados_email['analise']['trechos_criticos'])}
+                            
+                            {self._gerar_notas_html(dados_email['analise']['notas_baixas'])}
+                            
+                            <div class="summary-box">
+                                <div class="summary-title">Interpretação da IA:</div>
+                                <div class="summary-text">{dados_email['analise']['resumo_ia']}</div>
+                            </div>
                         </div>
-                        
-                        {self._gerar_trechos_html(dados_email['analise']['trechos_criticos'])}
-                        
-                        {self._gerar_notas_html(dados_email['analise']['notas_baixas'])}
-                        
-                        <div class="summary-box">
-                            <div class="summary-title">Interpretação da IA:</div>
-                            <div class="summary-text">{dados_email['analise']['resumo_ia']}</div>
-                        </div>
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div style="text-align: center;">
+                        <a href="{dados_email['link_detalhes']}" class="action-button">
+                            Ver Análise Completa no Sistema
+                        </a>
+                    </div>
+                    
+                    <div class="recommendations">
+                        <div class="section-title" style="border: none; margin-bottom: 10px;">Recomendações Estratégicas</div>
+                        <ul class="rec-list">
+                            <li>Contatar cliente nas próximas 4 horas para demonstrar proatividade</li>
+                            <li>Preparar plano de ação específico baseado nos pontos críticos identificados</li>
+                            <li>Oferecer sessão de follow-up personalizada sem custo adicional</li>
+                            <li>Documentar feedback para melhoria dos processos de treinamento</li>
+                            <li>Analisar padrões similares em outras avaliações do mesmo instrutor/produto</li>
+                        </ul>
                     </div>
                 </div>
                 
-                <div class="divider"></div>
-                
-                <div style="text-align: center;">
-                    <a href="{dados_email['link_detalhes']}" class="action-button">
-                        Ver Análise Completa no Sistema
-                    </a>
-                </div>
-                
-                <div class="recommendations">
-                    <div class="section-title" style="border: none; margin-bottom: 10px;">Recomendações Estratégicas</div>
-                    <ul class="rec-list">
-                        <li>Contatar cliente nas próximas 4 horas para demonstrar proatividade</li>
-                        <li>Preparar plano de ação específico baseado nos pontos críticos identificados</li>
-                        <li>Oferecer sessão de follow-up personalizada sem custo adicional</li>
-                        <li>Documentar feedback para melhoria dos processos de treinamento</li>
-                        <li>Analisar padrões similares em outras avaliações do mesmo instrutor/produto</li>
-                    </ul>
+                <div class="footer">
+                    <div class="footer-main">Sistema de Pesquisa de Satisfação</div>
+                    <div class="footer-timestamp">
+                        Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
+                    </div>
+                    <div class="ai-credit">
+                        <p class="ai-credit-text">
+                            🧠 Análise realizada por: RoBERTa (BERT)<br>
+                            IA de última geração especializada em compreensão de linguagem natural
+                        </p>
+                    </div>
                 </div>
             </div>
+        </body>
+        </html>
+                """.strip()
+                
+                # === VERSÃO TEXTO ===
+                texto_profissional = f"""
+        ALERTA DE INSATISFACAO - NIVEL {dados_email['nivel_alerta']}
+        {dados_email['urgencia']}
+
+        SITUACAO DETECTADA:
+        Um cliente demonstrou insatisfacao significativa com o treinamento realizado.
+        Recomenda-se analise imediata e contato direto para resolucao.
+
+        INFORMACOES DO CLIENTE:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Cliente: {dados_email['cliente']['nome']}              Codigo: {dados_email['cliente']['codigo']}
+        Treinamento: {dados_email['cliente']['treinamento']}
+        Produto: {dados_email['cliente']['produto']}           Agente: {dados_email['cliente']['agente']}
+        Data da Resposta: {dados_email['cliente']['data_resposta']}
+
+        ANALISE DE INTELIGENCIA ARTIFICIAL:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Confiabilidade: {dados_email['analise']['confianca']}% (alta precisao)
+
+        PRINCIPAIS PROBLEMAS IDENTIFICADOS:
+        {self._gerar_trechos_texto(dados_email['analise']['trechos_criticos'])}
+
+        INTERPRETACAO DA IA:
+        {dados_email['analise']['resumo_ia']}
+
+        RECOMENDACOES ESTRATEGICAS:
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        • Contatar cliente nas proximas 4 horas para demonstrar proatividade
+        • Preparar plano de acao especifico baseado nos pontos criticos identificados
+        • Oferecer sessao de follow-up personalizada sem custo adicional
+        • Documentar feedback para melhoria dos processos de treinamento
+        • Analisar padroes similares em outras avaliacoes do mesmo instrutor/produto
+
+        ACESSO COMPLETO: {dados_email['link_detalhes']}
+
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Sistema de Pesquisa de Satisfacao
+        Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y as %H:%M:%S')}
+
+        Analise realizada por: RoBERTa (BERT)
+        IA de ultima geracao especializada em compreensao de linguagem natural
+                """.strip()
+                
+                subject_line = f"ALERTA [{dados_email['nivel_alerta']}] - Insatisfação Detectada: {dados_email['cliente']['nome']}"
+                from_header = f"Sistema de Pesquisa <{self.email_remetente}>"
+                
+                print(f"[DEBUG] Email de alerta criado")
+                print(f"[DEBUG] Confiança IA: {dados_email['analise']['confianca']}%")
+                print(f"[DEBUG] Trechos críticos: {len(dados_email['analise']['trechos_criticos'])}")
+                
+            # MODO NOVO: Email simples (apenas para senhas)
+            else:
+                print(f"[DEBUG] Criando email simples")
+                html_profissional = corpo_html
+                texto_profissional = corpo_texto or "Versão texto não disponível"
+                subject_line = assunto
+                from_header = f"{self.nome_remetente} <{self.email_remetente}>"
             
-            <div class="footer">
-                <div class="footer-main">Sistema de Pesquisa de Satisfação</div>
-                <div class="footer-timestamp">
-                    Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
-                </div>
-                <div class="ai-credit">
-                    <p class="ai-credit-text">
-                        🧠 Análise realizada por: RoBERTa (BERT)<br>
-                        IA de última geração especializada em compreensão de linguagem natural
-                    </p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-            """.strip()
+            print(f"[DEBUG] Subject: {subject_line}")
+            print(f"[DEBUG] From: {from_header}")
+            print(f"[DEBUG] HTML length: {len(html_profissional) if html_profissional else 0}")
+            print(f"[DEBUG] Text length: {len(texto_profissional) if texto_profissional else 0}")
             
-            # === VERSÃO TEXTO (PROFISSIONAL) ===
-            
-            texto_profissional = f"""
-    ALERTA DE INSATISFACAO - NIVEL {dados_email['nivel_alerta']}
-    {dados_email['urgencia']}
-
-    SITUACAO DETECTADA:
-    Um cliente demonstrou insatisfacao significativa com o treinamento realizado.
-    Recomenda-se analise imediata e contato direto para resolucao.
-
-    INFORMACOES DO CLIENTE:
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    Cliente: {dados_email['cliente']['nome']}              Codigo: {dados_email['cliente']['codigo']}
-    Treinamento: {dados_email['cliente']['treinamento']}
-    Produto: {dados_email['cliente']['produto']}           Agente: {dados_email['cliente']['agente']}
-    Data da Resposta: {dados_email['cliente']['data_resposta']}
-
-    ANALISE DE INTELIGENCIA ARTIFICIAL:
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    Confiabilidade: {dados_email['analise']['confianca']}% (alta precisao)
-
-    PRINCIPAIS PROBLEMAS IDENTIFICADOS:
-    {self._gerar_trechos_texto(dados_email['analise']['trechos_criticos'])}
-
-    INTERPRETACAO DA IA:
-    {dados_email['analise']['resumo_ia']}
-
-    RECOMENDACOES ESTRATEGICAS:
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    • Contatar cliente nas proximas 4 horas para demonstrar proatividade
-    • Preparar plano de acao especifico baseado nos pontos criticos identificados
-    • Oferecer sessao de follow-up personalizada sem custo adicional
-    • Documentar feedback para melhoria dos processos de treinamento
-    • Analisar padroes similares em outras avaliacoes do mesmo instrutor/produto
-
-    ACESSO COMPLETO: {dados_email['link_detalhes']}
-
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    Sistema de Pesquisa de Satisfacao
-    Email enviado automaticamente em {datetime.now().strftime('%d/%m/%Y as %H:%M:%S')}
-
-    Analise realizada por: RoBERTa (BERT)
-    IA de ultima geracao especializada em compreensao de linguagem natural
-            """.strip()
-            
-            # === CRIAR MENSAGEM ===
+            # === CRIAÇÃO DA MENSAGEM ===
+            print(f"[DEBUG] === CRIANDO MENSAGEM EMAIL ===")
             
             from email.mime.multipart import MIMEMultipart
             from email.mime.text import MIMEText
             
             msg = MIMEMultipart('alternative')
-            
-            # Headers profissionais
-            msg['From'] = f"Sistema de Pesquisa <{self.email_remetente}>"
+            msg['From'] = from_header
             msg['To'] = destinatario
-            msg['Subject'] = f"ALERTA [{dados_email['nivel_alerta']}] - Insatisfação Detectada: {dados_email['cliente']['nome']}"
+            msg['Subject'] = subject_line
+            msg['Message-ID'] = f"<{hash(subject_line + destinatario)}@{self.smtp_server}>"
+            msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S %z')
             
-            # Anexar versões
-            parte_texto = MIMEText(texto_profissional, 'plain', 'utf-8')
-            parte_html = MIMEText(html_profissional, 'html', 'utf-8')
+            print(f"[DEBUG] Headers configurados")
+            print(f"[DEBUG] Message-ID: {msg['Message-ID']}")
             
-            msg.attach(parte_texto)
-            msg.attach(parte_html)
+            # Anexar conteúdo
+            if texto_profissional:
+                parte_texto = MIMEText(texto_profissional, 'plain', 'utf-8')
+                msg.attach(parte_texto)
+                print(f"[DEBUG] Parte texto anexada")
+                
+            if html_profissional:
+                parte_html = MIMEText(html_profissional, 'html', 'utf-8')
+                msg.attach(parte_html)
+                print(f"[DEBUG] Parte HTML anexada")
             
-            print(f"📧 [DEBUG] Email profissional criado")
-            print(f"   Confiança IA: {dados_email['analise']['confianca']}%")
-            print(f"   Trechos críticos: {len(dados_email['analise']['trechos_criticos'])}")
-            
-            # === ENVIO ===
+            # === CONEXÃO E ENVIO SMTP ===
+            print(f"[DEBUG] === INICIANDO CONEXÃO SMTP ===")
             
             import smtplib
             import ssl
+            import socket
             
+            # Testar resolução DNS primeiro
+            try:
+                print(f"[DEBUG] Testando resolução DNS para {self.smtp_server}")
+                ip = socket.gethostbyname(self.smtp_server)
+                print(f"[DEBUG] DNS OK - IP: {ip}")
+            except Exception as dns_error:
+                print(f"[ERROR] Falha na resolução DNS: {dns_error}")
+                return {
+                    'sucesso': False,
+                    'erro': f'Falha DNS: {dns_error}'
+                }
+            
+            # Configurar SSL
             context = ssl.create_default_context()
+            # Algumas configurações específicas para provedores brasileiros
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
             
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls(context=context)
-                server.login(self.smtp_username, self.smtp_password)
-                server.send_message(msg)
+            try:
+                print(f"[DEBUG] Conectando ao servidor SMTP {self.smtp_server}:{self.smtp_port}")
                 
-            print(f"✅ [DEBUG] Email profissional enviado!")
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30) as server:
+                    print(f"[DEBUG] Conexão estabelecida")
+                    
+                    # Ativar debug do SMTP
+                    server.set_debuglevel(1)
+                    
+                    print(f"[DEBUG] Iniciando STARTTLS")
+                    try:
+                        server.starttls(context=context)
+                        print(f"[DEBUG] STARTTLS OK")
+                    except Exception as tls_error:
+                        print(f"[WARNING] STARTTLS falhou: {tls_error}")
+                        print(f"[DEBUG] Tentando sem TLS")
+                    
+                    print(f"[DEBUG] Fazendo login")
+                    print(f"[DEBUG] Username: {self.smtp_username}")
+                    print(f"[DEBUG] Password: {'*' * len(self.smtp_password)}")
+                    
+                    try:
+                        server.login(self.smtp_username, self.smtp_password)
+                        print(f"[DEBUG] Login bem-sucedido")
+                    except smtplib.SMTPAuthenticationError as auth_error:
+                        print(f"[ERROR] Falha na autenticação: {auth_error}")
+                        return {
+                            'sucesso': False,
+                            'erro': f'Falha na autenticação SMTP: {auth_error}'
+                        }
+                    except Exception as login_error:
+                        print(f"[ERROR] Erro no login: {login_error}")
+                        return {
+                            'sucesso': False,
+                            'erro': f'Erro no login: {login_error}'
+                        }
+                    
+                    print(f"[DEBUG] Enviando mensagem")
+                    print(f"[DEBUG] De: {self.email_remetente}")
+                    print(f"[DEBUG] Para: {destinatario}")
+                    
+                    try:
+                        result = server.send_message(msg)
+                        print(f"[DEBUG] send_message() concluído")
+                        print(f"[DEBUG] Resultado SMTP: {result}")
+                        
+                        if not result:
+                            print(f"[DEBUG] Email aceito pelo servidor sem problemas")
+                        else:
+                            print(f"[WARNING] Alguns destinatários foram rejeitados: {result}")
+                            return {
+                                'sucesso': False,
+                                'erro': f'Destinatários rejeitados: {result}'
+                            }
+                            
+                    except smtplib.SMTPRecipientsRefused as recip_error:
+                        print(f"[ERROR] Destinatário recusado: {recip_error}")
+                        return {
+                            'sucesso': False,
+                            'erro': f'Destinatário recusado: {recip_error}'
+                        }
+                    except smtplib.SMTPDataError as data_error:
+                        print(f"[ERROR] Erro nos dados do email: {data_error}")
+                        return {
+                            'sucesso': False,
+                            'erro': f'Erro nos dados: {data_error}'
+                        }
+                    except Exception as send_error:
+                        print(f"[ERROR] Erro no envio: {send_error}")
+                        return {
+                            'sucesso': False,
+                            'erro': f'Erro no envio: {send_error}'
+                        }
+                    
+                    print(f"[DEBUG] Desconectando do servidor")
+                    
+            except smtplib.SMTPConnectError as conn_error:
+                print(f"[ERROR] Falha na conexão: {conn_error}")
+                return {
+                    'sucesso': False,
+                    'erro': f'Falha na conexão SMTP: {conn_error}'
+                }
+            except smtplib.SMTPServerDisconnected as disc_error:
+                print(f"[ERROR] Servidor desconectou: {disc_error}")
+                return {
+                    'sucesso': False,
+                    'erro': f'Servidor desconectou: {disc_error}'
+                }
+            except socket.timeout as timeout_error:
+                print(f"[ERROR] Timeout na conexão: {timeout_error}")
+                return {
+                    'sucesso': False,
+                    'erro': f'Timeout na conexão: {timeout_error}'
+                }
+            except Exception as general_error:
+                print(f"[ERROR] Erro geral: {general_error}")
+                print(f"[ERROR] Tipo do erro: {type(general_error)}")
+                return {
+                    'sucesso': False,
+                    'erro': f'Erro geral: {general_error}'
+                }
+            
+            print(f"[DEBUG] === EMAIL ENVIADO COM SUCESSO ===")
             
             return {
                 'sucesso': True,
-                'mensagem': f'Email profissional enviado para {destinatario}'
+                'mensagem': f'Email enviado para {destinatario}'
             }
             
         except Exception as e:
-            print(f"❌ [DEBUG] Erro no envio profissional: {str(e)}")
+            print(f"[ERROR] === EXCEÇÃO GERAL ===")
+            print(f"[ERROR] {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"[ERROR] Traceback:")
+            traceback.print_exc()
+            
             return {
                 'sucesso': False,
-                'erro': str(e)
+                'erro': f'Exceção geral: {str(e)}'
             }
             
     def _gerar_trechos_html(self, trechos_criticos):

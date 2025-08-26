@@ -901,6 +901,61 @@ def editar_usuario(user_id):
     return render_template('gestor/editar_usuario.html', usuario=usuario, estatisticas=estatisticas)
 
 
+@bp.route('/usuarios/<int:user_id>/resetar-senha', methods=['POST'])
+@gestor_required
+def resetar_senha_usuario(user_id):
+    """Resetar senha do usuário (apenas para gestores)"""
+    try:
+        from flask import session
+        import random
+        import string
+        
+        # Verificar se o usuário existe
+        query_check = "SELECT id, nome, email FROM usuarios WHERE id = %s"
+        result = execute_query(query_check, (user_id,), fetch=True)
+        
+        if not result:
+            return jsonify({'success': False, 'error': 'Usuário não encontrado'})
+        
+        usuario = result[0]
+        
+        # Verificar se não está tentando resetar a própria senha
+        if user_id == session.get('user_id'):
+            return jsonify({'success': False, 'error': 'Não é possível resetar sua própria senha por este método'})
+        
+        # Gerar nova senha temporária (8 caracteres)
+        caracteres = string.ascii_letters + string.digits
+        nova_senha = ''.join(random.choice(caracteres) for _ in range(8))
+        
+        # Hash da nova senha
+        nova_senha_hash = hash_password(nova_senha)
+        
+        # Atualizar senha no banco
+        query_update = """
+        UPDATE usuarios 
+        SET senha_hash = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+        """
+        
+        resultado = execute_query(query_update, (nova_senha_hash, user_id))
+        
+        if resultado:
+            return jsonify({
+                'success': True, 
+                'message': 'Senha resetada com sucesso',
+                'nova_senha': nova_senha,
+                'usuario_nome': usuario['nome'],
+                'usuario_email': usuario['email']
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Erro ao resetar senha no banco de dados'})
+            
+    except Exception as e:
+        print(f"Erro ao resetar senha: {str(e)}")
+        return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'})
+
+
+
 # ===== ROTAS DE AÇÕES DE INSATISFAÇÃO =====
 
 @bp.route('/acoes/<int:pesquisa_id>', methods=['GET'])

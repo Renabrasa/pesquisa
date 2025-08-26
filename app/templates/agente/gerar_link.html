@@ -21,10 +21,12 @@
                         <label class="form-label">Nome do Cliente *</label>
                         <input type="text" class="form-control" name="nome_cliente" id="nome_cliente" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Nome do Treinamento *</label>
+                   <div class="mb-3">
+                        <label class="form-label">Nome do Serviço *</label>
                         <input type="text" class="form-control" name="nome_treinamento" id="nome_treinamento" required>
+                        <small class="text-muted"><em>Não informe o nome do produto aqui</em></small>
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Tipo de Produto *</label>
                         <select class="form-control" name="tipo_produto_id" id="tipo_produto" required>
@@ -138,20 +140,115 @@ document.getElementById('formGerarLink').onsubmit = function(e) {
 };
 
 function gerarMensagemEnvio() {
+    const nomeServico = document.getElementById('nome_treinamento').value.trim();
+    const contexto = obterContexto(nomeServico, tipoProdutoAtual);
+
     const mensagem = `Olá, ${nomeClienteAtual}!
 
-Esperamos que tenha aproveitado o treinamento de ${tipoProdutoAtual}. 
-Para continuarmos melhorando, sua opinião é fundamental.
+Esperamos que o serviço "${nomeServico}" realizado no produto ${tipoProdutoAtual} ${contexto.complemento}.
+
+${contexto.motivacao}:
 
 ${linkGeradoAtual}
 
 ⏱️ Leva apenas 2 minutos
 🔒 Respostas confidenciais
 
-Obrigado(a)!`;
+${contexto.fechamento}`;
 
     document.getElementById('mensagemEnvio').value = mensagem;
 }
+
+function obterContexto(nomeServico, tipoProduto) {
+    const lowerProduto = tipoProduto.toLowerCase();
+
+    function pickRandom(lista) {
+        return lista[Math.floor(Math.random() * lista.length)];
+    }
+
+    if (lowerProduto.includes("time is money")) {
+        return {
+            complemento: pickRandom([
+                "tenha ajudado a otimizar sua gestão do tempo",
+                "tenha facilitado sua rotina de trabalho",
+                "tenha contribuído para mais produtividade no dia a dia"
+            ]),
+            motivacao: pickRandom([
+                "Sua avaliação é fundamental para continuarmos evoluindo nossos serviços de produtividade",
+                "Seu feedback nos ajuda a entregar soluções cada vez mais eficazes",
+                "Sua opinião é muito importante para melhorarmos continuamente"
+            ]),
+            fechamento: pickRandom([
+                "Sua opinião faz toda a diferença!",
+                "Obrigado por nos ajudar a melhorar!",
+                "Contamos com você nessa jornada de melhoria contínua!"
+            ])
+        };
+    }
+
+    if (lowerProduto.includes("servidor")) {
+        return {
+            complemento: pickRandom([
+                "tenha proporcionado mais eficiência e tranquilidade no seu dia a dia",
+                "tenha tornado suas operações mais seguras e estáveis",
+                "tenha atendido às suas expectativas em performance e confiabilidade",
+                "tenha apoiado sua empresa na continuidade das operações"
+            ]),
+            motivacao: pickRandom([
+                "Sua avaliação é essencial para aprimorarmos nossas soluções em nuvem",
+                "Seu feedback nos ajuda a garantir mais estabilidade e segurança",
+                "Sua opinião contribui para evoluirmos nossas soluções de infraestrutura"
+            ]),
+            fechamento: pickRandom([
+                "Obrigado pela confiança em nossas soluções!",
+                "Sua parceria é muito importante para nós!",
+                "Seguimos juntos para oferecer sempre o melhor!"
+            ])
+        };
+    }
+
+    if (lowerProduto.includes("alterdata")) {
+        return {
+            complemento: pickRandom([
+                "tenha agregado valor ao seu negócio",
+                "tenha facilitado a gestão da sua empresa",
+                "tenha contribuído para melhorar seus processos"
+            ]),
+            motivacao: pickRandom([
+                "Sua avaliação nos ajuda a aprimorar nossos serviços especializados",
+                "Seu feedback é essencial para continuarmos evoluindo",
+                "Sua opinião fortalece ainda mais nossa parceria"
+            ]),
+            fechamento: pickRandom([
+                "Agradecemos pela confiança e parceria!",
+                "Estamos juntos para crescer cada vez mais!",
+                "Muito obrigado por caminhar conosco!"
+            ])
+        };
+    }
+
+    // Contexto genérico
+    return {
+        complemento: pickRandom([
+            "tenha agregado valor ao seu negócio",
+            "tenha atendido suas expectativas",
+            "tenha feito diferença na sua rotina"
+        ]),
+        motivacao: pickRandom([
+            "Sua opinião é muito importante para continuarmos melhorando",
+            "Seu feedback é fundamental para nossa evolução",
+            "Sua avaliação nos ajuda a entregar um serviço cada vez melhor"
+        ]),
+        fechamento: pickRandom([
+            "Muito obrigado!",
+            "Agradecemos pela confiança!",
+            "Conte sempre conosco!"
+        ])
+    };
+}
+
+
+
 
 function copiarLink() {
     const link = document.getElementById('linkGerado');
