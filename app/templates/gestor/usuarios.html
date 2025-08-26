@@ -50,7 +50,27 @@
         </div>
     </div>
 </div>
-
+<!-- Campo de Busca -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">🔍</span>
+                    <input type="text" class="form-control" id="buscaUsuario" 
+                           placeholder="Buscar por nome, email ou tipo...">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <select class="form-control" id="filtroTipo">
+                    <option value="">Todos os tipos</option>
+                    <option value="agente">Agentes</option>
+                    <option value="gestor">Gestores</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Tabela de Usuários -->
 <div class="card">
     <div class="card-header bg-dark text-white">
@@ -220,5 +240,31 @@ function confirmarDesativacao(userId, nomeUsuario) {
         window.location.href = `/gestor/usuarios/editar/${userId}`;
     }
 }
+
+// Busca em tempo real
+document.getElementById('buscaUsuario').addEventListener('input', filtrarUsuarios);
+document.getElementById('filtroTipo').addEventListener('change', filtrarUsuarios);
+
+function filtrarUsuarios() {
+    const busca = document.getElementById('buscaUsuario').value.toLowerCase();
+    const tipoFiltro = document.getElementById('filtroTipo').value.toLowerCase();
+    const linhas = document.querySelectorAll('tbody tr');
+    
+    linhas.forEach(linha => {
+        const nome = linha.cells[1]?.textContent.toLowerCase() || '';
+        const email = linha.cells[2]?.textContent.toLowerCase() || '';
+        const tipo = linha.cells[3]?.textContent.toLowerCase() || '';
+        
+        const matchBusca = nome.includes(busca) || email.includes(busca) || tipo.includes(busca);
+        const matchTipo = !tipoFiltro || tipo.includes(tipoFiltro);
+        
+        linha.style.display = (matchBusca && matchTipo) ? '' : 'none';
+    });
+}
+
+
+
+
+
 </script>
 {% endblock %}
