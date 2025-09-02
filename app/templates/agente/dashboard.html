@@ -330,7 +330,7 @@
     <div class="col-md-12">
         <div class="card">
             <div class="card-header bg-dark text-white">
-                <h5 class="mb-0">📋 Suas Últimas Pesquisas</h5>
+                <h5 class="mb-0">📋 Suas Pesquisas - Página {{ pagination.page }}</h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -386,6 +386,116 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                <!-- COMPONENTE DE PAGINAÇÃO PARA AGENTE -->
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <!-- Informações e seletor de itens por página -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <!-- Indicador de resultados -->
+                                <span class="text-muted" style="font-size: 13px;">
+                                    Mostrando {{ pagination.start_item }}-{{ pagination.end_item }} de {{ pagination.total_items }} pesquisas
+                                </span>
+                                
+                                <!-- Seletor de itens por página (adaptado para agente) -->
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="perPage" class="form-label mb-0 text-muted" style="font-size: 12px;">
+                                        Itens por página:
+                                    </label>
+                                    <select class="form-select form-select-sm" id="perPage" style="width: auto;" onchange="alterarItensPorPagina(this.value)">
+                                        <option value="5" {% if pagination.per_page == 5 %}selected{% endif %}>5</option>
+                                        <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10</option>
+                                        <option value="20" {% if pagination.per_page == 20 %}selected{% endif %}>20</option>
+                                        <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Navegação de páginas -->
+                            {% if pagination.total_pages > 1 %}
+                            <nav aria-label="Navegação de páginas">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <!-- Botão Anterior -->
+                                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                                        {% if pagination.has_prev %}
+                                            <a class="page-link" href="{{ url_for('agente.dashboard', 
+                                                page=pagination.prev_page,
+                                                per_page=pagination.per_page
+                                            ) }}">
+                                                ← Anterior
+                                            </a>
+                                        {% else %}
+                                            <span class="page-link">← Anterior</span>
+                                        {% endif %}
+                                    </li>
+                                    
+                                    <!-- Números das páginas -->
+                                    {% set start_page = [1, pagination.page - 2]|max %}
+                                    {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
+                                    
+                                    <!-- Primeira página (se não estiver no range) -->
+                                    {% if start_page > 1 %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('agente.dashboard', 
+                                                page=1,
+                                                per_page=pagination.per_page
+                                            ) }}">1</a>
+                                        </li>
+                                        {% if start_page > 2 %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link">...</span>
+                                            </li>
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    <!-- Páginas do range -->
+                                    {% for page_num in range(start_page, end_page + 1) %}
+                                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                                            {% if page_num == pagination.page %}
+                                                <span class="page-link">{{ page_num }}</span>
+                                            {% else %}
+                                                <a class="page-link" href="{{ url_for('agente.dashboard', 
+                                                    page=page_num,
+                                                    per_page=pagination.per_page
+                                                ) }}">{{ page_num }}</a>
+                                            {% endif %}
+                                        </li>
+                                    {% endfor %}
+                                    
+                                    <!-- Última página (se não estiver no range) -->
+                                    {% if end_page < pagination.total_pages %}
+                                        {% if end_page < pagination.total_pages - 1 %}
+                                            <li class="page-item disabled">
+                                                <span class="page-link">...</span>
+                                            </li>
+                                        {% endif %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('agente.dashboard', 
+                                                page=pagination.total_pages,
+                                                per_page=pagination.per_page
+                                            ) }}">{{ pagination.total_pages }}</a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    <!-- Botão Próximo -->
+                                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                                        {% if pagination.has_next %}
+                                            <a class="page-link" href="{{ url_for('agente.dashboard', 
+                                                page=pagination.next_page,
+                                                per_page=pagination.per_page
+                                            ) }}">
+                                                Próximo →
+                                            </a>
+                                        {% else %}
+                                            <span class="page-link">Próximo →</span>
+                                        {% endif %}
+                                    </li>
+                                </ul>
+                            </nav>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -520,6 +630,28 @@ function verDicasMelhoria() {
               'Continue assim e mantenha o foco na qualidade dos treinamentos.');
     }
 }
+
+// Função para alterar número de itens por página (agente)
+function alterarItensPorPagina(novoPerPage) {
+    console.log('📄 Agente - Alterando itens por página para:', novoPerPage);
+    
+    // Para agente, não há filtros complexos, apenas page e per_page
+    const params = new URLSearchParams();
+    params.set('per_page', novoPerPage);
+    params.set('page', '1'); // Voltar para primeira página
+    
+    // Redirecionar com novos parâmetros
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+// Debug específico do agente
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 Sistema de paginação do agente carregado!');
+    console.log('📊 Página atual:', {{ pagination.page if pagination else 'N/A' }});
+    console.log('📊 Total de páginas:', {{ pagination.total_pages if pagination else 'N/A' }});
+    console.log('📊 Total de pesquisas do agente:', {{ pagination.total_items if pagination else 'N/A' }});
+});
+
 </script>
 
 {% endblock %}

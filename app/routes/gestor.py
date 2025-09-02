@@ -4,6 +4,7 @@ from app.routes.auth import login_required, gestor_required
 import hashlib
 import json
 from app.utils.upload import save_avatar, delete_avatar, get_default_avatar
+from app.utils.pagination import Paginator
 
 bp = Blueprint('gestor', __name__)
 
@@ -14,6 +15,17 @@ def hash_password(password):
 @bp.route('/')
 @gestor_required
 def dashboard():
+    # === IMPORTS NECESSÁRIOS ===
+    from app.utils.pagination import Paginator
+    
+    # === CAPTURAR PARÂMETROS DE PAGINAÇÃO ===
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    # Validar parâmetros
+    page = max(1, page)
+    per_page = min(max(10, per_page), 100)  # Entre 10 e 100 itens por página
+    
     # Capturar filtros da URL
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
@@ -22,6 +34,7 @@ def dashboard():
     produto_id = request.args.get('produto_id', '')  # NOVO FILTRO DE PRODUTO
     
     print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}', status='{status}', produto_id='{produto_id}'")
+    print(f"DEBUG - Paginação: page={page}, per_page={per_page}")
     
     # === BUSCAR PRODUTOS PARA O DROPDOWN ===
     query_produtos = "SELECT id, nome FROM tipos_produtos ORDER BY nome"
@@ -381,7 +394,22 @@ def dashboard():
             'mensagem': f'Taxa caiu {semana_passada["taxa"] - esta_semana["taxa"]:.1f}% em relação ao período anterior.'
         })
     
-    # === PESQUISAS RECENTES COM STATUS CORRIGIDO ===
+    # === PAGINAÇÃO: CONTAR TOTAL DE PESQUISAS ===
+    query_count_pesquisas = f"""
+    SELECT COUNT(*) as total
+    FROM pesquisas p
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    WHERE {where_clause}
+    """
+    
+    count_result = execute_query(query_count_pesquisas, params_base, fetch=True)
+    total_pesquisas_paginacao = count_result[0]['total'] if count_result else 0
+    
+    # === CONFIGURAR PAGINAÇÃO ===
+    paginator = Paginator(total_pesquisas_paginacao, page, per_page)
+    pagination_info = paginator.get_pagination_info()
+    
+    # === PESQUISAS RECENTES COM PAGINAÇÃO ===
     query_pesquisas = f"""
     SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
            -- LÓGICA DE STATUS CORRIGIDA
@@ -412,10 +440,12 @@ def dashboard():
     LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
     WHERE {where_clause}
     ORDER BY p.created_at DESC
-    LIMIT 20
+    LIMIT %s OFFSET %s
     """
     
-    pesquisas = execute_query(query_pesquisas, params_base, fetch=True) or []
+    # Adicionar parâmetros de paginação
+    params_pesquisas = params_base + [per_page, pagination_info['offset']]
+    pesquisas = execute_query(query_pesquisas, params_pesquisas, fetch=True) or []
     
     # === ORGANIZAR MÉTRICAS COMPLETAS ===
     metricas_completas = {
@@ -442,7 +472,8 @@ def dashboard():
     return render_template('gestor/dashboard.html', 
                          metricas=metricas_completas, 
                          pesquisas=pesquisas,
-                         produtos=produtos)  # PASSAR PRODUTOS PARA O TEMPLATE
+                         produtos=produtos,  # PASSAR PRODUTOS PARA O TEMPLATE
+                         pagination=pagination_info)  # NOVO: DADOS DE PAGINAÇÃO
 
 @bp.route('/detalhes/<int:pesquisa_id>')
 @gestor_required

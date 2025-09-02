@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import os
 from app.utils.database import execute_query
 from app.routes.auth import login_required
+from app.utils.pagination import Paginator
+
 
 bp = Blueprint('agente', __name__)
 
@@ -12,29 +14,40 @@ bp = Blueprint('agente', __name__)
 @bp.route('/')
 @login_required
 def dashboard():
-    agente_id = session['user_id']  # Usar o ID do usuário logado
     
-    # === MÉTRICAS GERAIS COM FEEDBACK NEGATIVO ===
+    
+    
+    # === CAPTURAR PARÂMETROS DE PAGINAÇÃO ===
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    # Validar parâmetros
+    page = max(1, page)
+    per_page = min(max(5, per_page), 50)  # Entre 5 e 50 itens por página (menor que gestor)
+    
+    agente_id = session['user_id']
+    
+    # === MÉTRICAS GERAIS DO AGENTE ===
     query_metricas = """
     SELECT 
-        COUNT(*) as total_pesquisas,
-        SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) as pesquisas_respondidas,
-        SUM(CASE WHEN respondida = FALSE AND data_expiracao > NOW() THEN 1 ELSE 0 END) as pesquisas_pendentes,
+        COUNT(p.id) as total_pesquisas,
+        SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as pesquisas_respondidas,
+        SUM(CASE WHEN p.respondida = FALSE AND p.data_expiracao > NOW() THEN 1 ELSE 0 END) as pesquisas_pendentes,
         ROUND(
-            (SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(*), 0), 1
+            (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(COUNT(p.id), 0), 1
         ) as taxa_resposta,
-        -- NOVAS MÉTRICAS DE FEEDBACK
+        -- FEEDBACK POR SENTIMENTO
         SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as feedback_negativo,
         SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) as feedback_positivo,
         SUM(CASE WHEN as_sent.sentimento = 'neutral' THEN 1 ELSE 0 END) as feedback_neutro,
         ROUND(
             (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
         ) as percentual_negativo,
         ROUND(
             (SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(SUM(CASE WHEN respondida = TRUE THEN 1 ELSE 0 END), 0), 1
+            NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
         ) as percentual_positivo
     FROM pesquisas p
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
@@ -43,10 +56,9 @@ def dashboard():
     
     metricas_result = execute_query(query_metricas, (agente_id,), fetch=True)
     metricas = metricas_result[0] if metricas_result else {
-        'total_pesquisas': 0, 'pesquisas_respondidas': 0, 
-        'pesquisas_pendentes': 0, 'taxa_resposta': 0,
-        'feedback_negativo': 0, 'feedback_positivo': 0, 'feedback_neutro': 0,
-        'percentual_negativo': 0, 'percentual_positivo': 0
+        'total_pesquisas': 0, 'pesquisas_respondidas': 0, 'pesquisas_pendentes': 0,
+        'taxa_resposta': 0, 'feedback_negativo': 0, 'feedback_positivo': 0, 
+        'feedback_neutro': 0, 'percentual_negativo': 0, 'percentual_positivo': 0
     }
     
     # Garantir que valores não sejam None
@@ -54,7 +66,7 @@ def dashboard():
         if metricas[key] is None:
             metricas[key] = 0
 
-    # === MÉTRICAS POR PRODUTO COM FEEDBACK ===
+    # === MÉTRICAS POR PRODUTO ===
     query_por_produto = """
     SELECT 
         tp.nome,
@@ -64,9 +76,7 @@ def dashboard():
             (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(COUNT(p.id), 0), 1
         ) as taxa,
-        -- FEEDBACK POR PRODUTO
         SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos,
-        SUM(CASE WHEN as_sent.sentimento = 'positive' THEN 1 ELSE 0 END) as positivos,
         ROUND(
             (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
             NULLIF(SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END), 0), 1
@@ -79,14 +89,8 @@ def dashboard():
     """
     
     por_produto = execute_query(query_por_produto, (agente_id,), fetch=True) or []
-
-    # 🔽 Adicionar este bloco
-    for p in por_produto:
-        for key in ["taxa", "negativos", "positivos", "percentual_negativo_produto", "total", "respondidas"]:
-            if p.get(key) is None:
-                p[key] = 0
-
-    # === MÉTRICAS TEMPORAIS COM FEEDBACK ===
+    
+    # === MÉTRICAS TEMPORAIS ===
     query_esta_semana = """
     SELECT 
         COUNT(*) as criadas,
@@ -154,7 +158,21 @@ def dashboard():
             if periodo[key] is None:
                 periodo[key] = 0
 
-    # === ÚLTIMAS PESQUISAS COM STATUS DE FEEDBACK ===
+    # === PAGINAÇÃO: CONTAR TOTAL DE PESQUISAS DO AGENTE ===
+    query_count_ultimas = """
+    SELECT COUNT(*) as total
+    FROM pesquisas p
+    WHERE p.agente_id = %s
+    """
+    
+    count_result = execute_query(query_count_ultimas, (agente_id,), fetch=True)
+    total_ultimas_pesquisas = count_result[0]['total'] if count_result else 0
+    
+    # === CONFIGURAR PAGINAÇÃO ===
+    paginator = Paginator(total_ultimas_pesquisas, page, per_page)
+    pagination_info = paginator.get_pagination_info()
+
+    # === ÚLTIMAS PESQUISAS COM PAGINAÇÃO ===
     query_ultimas = """
     SELECT p.*, tp.nome as tipo_produto,
            as_sent.sentimento,
@@ -170,10 +188,10 @@ def dashboard():
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
     WHERE p.agente_id = %s
     ORDER BY p.created_at DESC
-    LIMIT 10
+    LIMIT %s OFFSET %s
     """
     
-    ultimas_pesquisas = execute_query(query_ultimas, (agente_id,), fetch=True) or []
+    ultimas_pesquisas = execute_query(query_ultimas, (agente_id, per_page, pagination_info['offset']), fetch=True) or []
     
     # === ANÁLISE DE PERFORMANCE DO AGENTE ===
     alertas_agente = []
@@ -185,15 +203,9 @@ def dashboard():
             'titulo': 'Alto Índice de Insatisfação',
             'mensagem': f'{metricas["percentual_negativo"]}% dos seus atendimentos receberam feedback negativo.'
         })
-    elif metricas['percentual_negativo'] > 10:
-        alertas_agente.append({
-            'tipo': 'warning',
-            'titulo': 'Atenção ao Feedback',
-            'mensagem': f'{metricas["percentual_negativo"]}% dos seus atendimentos receberam feedback negativo.'
-        })
     
     # Alerta de baixa taxa de resposta
-    if metricas['taxa_resposta'] < 50:
+    if metricas['taxa_resposta'] < 50 and metricas['total_pesquisas'] > 5:
         alertas_agente.append({
             'tipo': 'warning',
             'titulo': 'Taxa de Resposta Baixa',
@@ -230,7 +242,8 @@ def dashboard():
     
     return render_template('agente/dashboard.html', 
                          metricas=metricas_completas, 
-                         ultimas_pesquisas=ultimas_pesquisas)
+                         ultimas_pesquisas=ultimas_pesquisas,
+                         pagination=pagination_info)  # NOVO: DADOS DE PAGINAÇÃO
 
 @bp.route('/gerar-link', methods=['GET', 'POST'])
 @login_required
