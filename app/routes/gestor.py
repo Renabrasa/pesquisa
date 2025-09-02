@@ -1,4 +1,4 @@
-from fastapi import params
+#from fastapi import params
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app.utils.database import execute_query
 from app.routes.auth import login_required, gestor_required
