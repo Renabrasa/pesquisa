@@ -1,3 +1,4 @@
+from fastapi import params
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app.utils.database import execute_query
 from app.routes.auth import login_required, gestor_required
@@ -32,6 +33,7 @@ def dashboard():
     busca = request.args.get('busca', '').strip()
     status = request.args.get('status', '')  # NOVO FILTRO
     produto_id = request.args.get('produto_id', '')  # NOVO FILTRO DE PRODUTO
+    sentimento = request.args.get('sentimento', '')  # FILTRO DE SENTIMENTO
     
     print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}', status='{status}', produto_id='{produto_id}'")
     print(f"DEBUG - Paginação: page={page}, per_page={per_page}")
@@ -78,9 +80,19 @@ def dashboard():
         condicoes_where.append("p.tipo_produto_id = %s")
         params_base.append(produto_id)
     
-    # Montar cláusula WHERE
+    # NOVO: Filtro de sentimento
+# Montar cláusula WHERE sem sentimento
     where_clause = " AND ".join(condicoes_where) if condicoes_where else "1=1"
-    
+
+    # WHERE clause especial COM sentimento (apenas para query principal)
+    if sentimento:
+        condicoes_where_com_sentimento = condicoes_where + ["as_sent.sentimento = %s"]
+        where_clause_com_sentimento = " AND ".join(condicoes_where_com_sentimento)
+        params_com_sentimento = params_base + [sentimento]
+    else:
+        where_clause_com_sentimento = where_clause
+        params_com_sentimento = params_base
+        
     # === MÉTRICAS GERAIS COM FILTROS ===
     query_metricas = f"""
     SELECT 
@@ -438,13 +450,17 @@ def dashboard():
     LEFT JOIN usuarios u ON p.agente_id = u.id
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
     LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
-    WHERE {where_clause}
+    WHERE {where_clause_com_sentimento}
     ORDER BY p.created_at DESC
     LIMIT %s OFFSET %s
     """
     
     # Adicionar parâmetros de paginação
-    params_pesquisas = params_base + [per_page, pagination_info['offset']]
+    params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
+    
+    # Debug (OPCIONAL)
+    print(f"Query principal - Parâmetros: {params_pesquisas}")
+    
     pesquisas = execute_query(query_pesquisas, params_pesquisas, fetch=True) or []
     
     # === ORGANIZAR MÉTRICAS COMPLETAS ===

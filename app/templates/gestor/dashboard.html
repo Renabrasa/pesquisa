@@ -304,7 +304,7 @@
                         <input type="hidden" name="per_page" value="{{ pagination.per_page }}">
                     
                     <!-- Campo de Busca -->
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label for="buscar" class="form-label fw-bold">Buscar</label>
                         <input type="text" 
                                class="form-control" 
@@ -359,7 +359,16 @@
                             <option value="expirada" {% if request.args.get('status') == 'expirada' %}selected{% endif %}>Expiradas</option>
                         </select>
                     </div>
-                    
+                    <!-- NOVO: Filtro de Sentimento -->
+                    <div class="col-md-1">
+                        <label for="sentimentoFiltro" class="form-label fw-bold">Avaliação</label>
+                        <select class="form-control" id="sentimentoFiltro" name="sentimento">
+                            <option value="">Todas</option>
+                            <option value="negative" {% if request.args.get('sentimento') == 'negative' %}selected{% endif %}>Mal Avaliadas</option>
+                            <option value="positive" {% if request.args.get('sentimento') == 'positive' %}selected{% endif %}>Bem Avaliadas</option>
+                            <option value="neutral" {% if request.args.get('sentimento') == 'neutral' %}selected{% endif %}>Neutras</option>
+                        </select>
+                    </div>
                     <!-- Botões -->
                     <div class="col-md-2">
                         <div class="d-grid gap-2">
@@ -1057,7 +1066,8 @@
                                 data_inicio=request.args.get('data_inicio', ''),
                                 data_fim=request.args.get('data_fim', ''),
                                 status=request.args.get('status', ''),
-                                produto_id=request.args.get('produto_id', '')
+                                produto_id=request.args.get('produto_id', ''),
+                                sentimento=request.args.get('sentimento', '')
                             ) }}">
                                 ← Anterior
                             </a>
@@ -1080,7 +1090,8 @@
                                 data_inicio=request.args.get('data_inicio', ''),
                                 data_fim=request.args.get('data_fim', ''),
                                 status=request.args.get('status', ''),
-                                produto_id=request.args.get('produto_id', '')
+                                produto_id=request.args.get('produto_id', ''),
+                                sentimento=request.args.get('sentimento', '')
                             ) }}">1</a>
                         </li>
                         {% if start_page > 2 %}
@@ -1103,7 +1114,8 @@
                                     data_inicio=request.args.get('data_inicio', ''),
                                     data_fim=request.args.get('data_fim', ''),
                                     status=request.args.get('status', ''),
-                                    produto_id=request.args.get('produto_id', '')
+                                    produto_id=request.args.get('produto_id', ''),
+                                    sentimento=request.args.get('sentimento', '')
                                 ) }}">{{ page_num }}</a>
                             {% endif %}
                         </li>
@@ -1124,7 +1136,8 @@
                                 data_inicio=request.args.get('data_inicio', ''),
                                 data_fim=request.args.get('data_fim', ''),
                                 status=request.args.get('status', ''),
-                                produto_id=request.args.get('produto_id', '')
+                                produto_id=request.args.get('produto_id', ''),
+                                sentimento=request.args.get('sentimento', '')
                             ) }}">{{ pagination.total_pages }}</a>
                         </li>
                     {% endif %}
@@ -1139,7 +1152,8 @@
                                 data_inicio=request.args.get('data_inicio', ''),
                                 data_fim=request.args.get('data_fim', ''),
                                 status=request.args.get('status', ''),
-                                produto_id=request.args.get('produto_id', '')
+                                produto_id=request.args.get('produto_id', ''),
+                                sentimento=request.args.get('sentimento', '')
                             ) }}">
                                 Próximo →
                             </a>
@@ -1250,6 +1264,7 @@ function limparTodosFiltros() {
     document.getElementById('dataInicio').value = '';
     document.getElementById('dataFim').value = '';
     document.getElementById('statusFiltro').value = '';
+    document.getElementById('sentimentoFiltro').value = '';
     
     // Submeter automaticamente
     document.getElementById('filtrosForm').submit();
@@ -1272,6 +1287,9 @@ function removerFiltro(tipo) {
             break;
         case 'status':
             document.getElementById('statusFiltro').value = '';
+            break;
+        case 'sentimento':
+            document.getElementById('sentimentoFiltro').value = '';
             break;
     }
     
@@ -1394,7 +1412,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Atualizar indicadores quando mudar qualquer campo
-    const campos = ['buscar', 'produtoFiltro', 'dataInicio', 'dataFim', 'statusFiltro'];  // PRODUTO ADICIONADO
+    const campos = ['buscar', 'produtoFiltro', 'dataInicio', 'dataFim', 'statusFiltro', 'sentimentoFiltro'];
     campos.forEach(id => {
         const campo = document.getElementById(id);
         if (campo) {
