@@ -174,7 +174,7 @@
                                 <span class="badge bg-danger">{{ produto.negativos or 0 }}</span>
                             </td>
                             <td>
-                                <span class="badge bg-{% if produto.percentual_negativo_produto <= 10 %}success{% elif produto.percentual_negativo_produto <= 20 %}warning{% else %}danger{% endif %}">
+                                <span class="badge bg-{% if (produto.percentual_negativo_produto or 0) <= 10 %}success{% elif (produto.percentual_negativo_produto or 0) <= 20 %}warning{% else %}danger{% endif %}">
                                     {{ produto.percentual_negativo_produto or 0 }}%
                                 </span>
                             </td>
