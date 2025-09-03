@@ -179,7 +179,7 @@
                                 </span>
                             </td>
                             <td>
-                                {% if produto.percentual_negativo_produto <= 10 %}
+                                {% if (produto.percentual_negativo_produto or 0) <= 10 %}
                                     <span class="text-success">✅ Excelente</span>
                                 {% elif produto.percentual_negativo_produto <= 20 %}
                                     <span class="text-warning">⚠️ Atenção</span>
