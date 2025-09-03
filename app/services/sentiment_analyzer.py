@@ -46,46 +46,69 @@ class SentimentAnalyzer:
     def analisar_sentimento_texto(self, texto: str) -> Dict:
         """
         Analisa sentimento de um texto usando RoBERTa
-        
-        Args:
-            texto (str): Texto para análise
-            
-        Returns:
-            dict: {'sentimento': str, 'confianca': float, 'detalhes': dict}
+        Com retry logic para timeout
         """
-        try:
-            # Limpar e preparar texto
-            texto_limpo = self._limpar_texto(texto)
-            
-            if not texto_limpo or len(texto_limpo.strip()) < 3:
-                return {
-                    'sentimento': 'neutral',
-                    'confianca': 0.5,
-                    'detalhes': {'erro': 'Texto muito curto ou vazio'}
-                }
-            
-            # Fazer requisição para Hugging Face
-            payload = {"inputs": texto_limpo}
-            response = requests.post(
-                self.api_url,
-                headers=self.headers,
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return self._processar_resposta_roberta(result, texto_limpo)
-            else:
-                raise Exception(f"Erro API: {response.status_code} - {response.text}")
+        import time
+        
+        max_tentativas = 3
+        delay_entre_tentativas = 5  # segundos
+        
+        for tentativa in range(max_tentativas):
+            try:
+                # Limpar e preparar texto
+                texto_limpo = self._limpar_texto(texto)
                 
-        except Exception as e:
-            print(f"Erro na análise de sentimento: {str(e)}")
-            return {
-                'sentimento': 'neutral',
-                'confianca': 0.0,
-                'detalhes': {'erro': str(e)}
-            }
+                if not texto_limpo or len(texto_limpo.strip()) < 3:
+                    return {
+                        'sentimento': 'neutral',
+                        'confianca': 0.5,
+                        'detalhes': {'erro': 'Texto muito curto ou vazio'}
+                    }
+                
+                # Fazer requisição para Hugging Face
+                payload = {"inputs": texto_limpo}
+                
+                print(f"🤖 Tentativa {tentativa + 1}/{max_tentativas} - Analisando sentimento...")
+                
+                response = requests.post(
+                    self.api_url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60  # Aumentado para 60 segundos
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"✅ Análise de sentimento concluída com sucesso!")
+                    return self._processar_resposta_roberta(result, texto_limpo)
+                else:
+                    raise Exception(f"Erro API: {response.status_code} - {response.text}")
+                    
+            except requests.exceptions.Timeout:
+                print(f"⏰ Timeout na tentativa {tentativa + 1}/{max_tentativas}")
+                if tentativa < max_tentativas - 1:  # Não é a última tentativa
+                    print(f"🔄 Aguardando {delay_entre_tentativas}s antes da próxima tentativa...")
+                    time.sleep(delay_entre_tentativas)
+                    continue
+                else:
+                    print(f"❌ Todas as tentativas falharam por timeout")
+                    return {
+                        'sentimento': 'neutral',
+                        'confianca': 0.0,
+                        'detalhes': {'erro': f'Timeout após {max_tentativas} tentativas'}
+                    }
+            except Exception as e:
+                print(f"❌ Erro na análise de sentimento (tentativa {tentativa + 1}): {str(e)}")
+                if tentativa < max_tentativas - 1:
+                    print(f"🔄 Tentando novamente em {delay_entre_tentativas}s...")
+                    time.sleep(delay_entre_tentativas)
+                    continue
+                else:
+                    return {
+                        'sentimento': 'neutral',
+                        'confianca': 0.0,
+                        'detalhes': {'erro': str(e)}
+                    }
 
     def _processar_resposta_roberta(self, result: List, texto: str) -> Dict:
         """Processa resposta da API RoBERTa e adiciona análise de palavras-chave"""
