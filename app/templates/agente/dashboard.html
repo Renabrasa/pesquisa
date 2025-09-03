@@ -163,7 +163,7 @@
                             <td>{{ produto.total or 0 }}</td>
                             <td>{{ produto.respondidas or 0 }}</td>
                             <td>
-                                <span class="badge bg-{% if produto.taxa >= 70 %}success{% elif produto.taxa >= 50 %}warning{% else %}danger{% endif %}">
+                                <span class="badge bg-{% if (produto.taxa or 0) >= 70 %}success{% elif (produto.taxa or 0) >= 50 %}warning{% else %}danger{% endif %}">
                                     {{ produto.taxa or 0 }}%
                                 </span>
                             </td>
