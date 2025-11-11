@@ -15,7 +15,7 @@ class SentimentAnalyzer:
     
     def __init__(self):
         self.model_name = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_name}"
+        self.api_url = f"https://router.huggingface.co/models/{self.model_name}"
         self.token = os.getenv('HUGGING_FACE_TOKEN')
         
         if not self.token:
