@@ -1,30 +1,26 @@
 # app/services/sentiment_analyzer.py
 
-import requests
 import json
 import os
 import re
+import time
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+import zhipuai
 
 class SentimentAnalyzer:
     """
-    Serviço de análise de sentimento usando RoBERTa via Hugging Face
+    Serviço de análise de sentimento usando ZHIPU AI GLM-4.5 Flash
     Implementa sistema híbrido: texto livre + escalas numéricas
     """
     
     def __init__(self):
-        self.model_name = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-        self.api_url = f"https://router.huggingface.co/models/{self.model_name}"
-        self.token = os.getenv('HUGGING_FACE_TOKEN')
+        self.api_key = os.getenv('ZHIPU_API_KEY')
         
-        if not self.token:
-            raise ValueError("HUGGING_FACE_TOKEN não encontrado no .env")
+        if not self.api_key:
+            raise ValueError("ZHIPU_API_KEY não encontrado no .env")
         
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
+        self.model_name = "glm-4-flash"
         
         # Palavras-chave para detectar insatisfação
         self.palavras_insatisfacao = [
@@ -45,10 +41,9 @@ class SentimentAnalyzer:
 
     def analisar_sentimento_texto(self, texto: str) -> Dict:
         """
-        Analisa sentimento de um texto usando RoBERTa
+        Analisa sentimento de um texto usando ZHIPU AI GLM-4.5 Flash
         Com retry logic para timeout
         """
-        import time
         
         max_tentativas = 3
         delay_entre_tentativas = 5  # segundos
@@ -65,38 +60,34 @@ class SentimentAnalyzer:
                         'detalhes': {'erro': 'Texto muito curto ou vazio'}
                     }
                 
-                # Fazer requisição para Hugging Face
-                payload = {"inputs": texto_limpo}
-                
                 print(f"🤖 Tentativa {tentativa + 1}/{max_tentativas} - Analisando sentimento...")
                 
-                response = requests.post(
-                    self.api_url,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=60  # Aumentado para 60 segundos
+                # Chamar ZHIPU AI
+                client = zhipuai.ZhipuAI(api_key=self.api_key)
+                
+                prompt = f"""Você é um analisador de sentimento especializado em português. 
+Analise o seguinte texto e responda APENAS em JSON, sem explicações adicionais.
+
+Texto: "{texto_limpo}"
+
+Responda EXATAMENTE neste formato JSON (sem markdown, sem texto adicional):
+{{"sentimento": "positive" ou "negative" ou "neutral", "confianca": valor entre 0.0 e 1.0, "resumo": "breve resumo"}}"""
+
+                response = client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    top_p=0.7
                 )
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    print(f"✅ Análise de sentimento concluída com sucesso!")
-                    return self._processar_resposta_roberta(result, texto_limpo)
-                else:
-                    raise Exception(f"Erro API: {response.status_code} - {response.text}")
-                    
-            except requests.exceptions.Timeout:
-                print(f"⏰ Timeout na tentativa {tentativa + 1}/{max_tentativas}")
-                if tentativa < max_tentativas - 1:  # Não é a última tentativa
-                    print(f"🔄 Aguardando {delay_entre_tentativas}s antes da próxima tentativa...")
-                    time.sleep(delay_entre_tentativas)
-                    continue
-                else:
-                    print(f"❌ Todas as tentativas falharam por timeout")
-                    return {
-                        'sentimento': 'neutral',
-                        'confianca': 0.0,
-                        'detalhes': {'erro': f'Timeout após {max_tentativas} tentativas'}
-                    }
+                resposta_texto = response.choices[0].message.content
+                
+                print(f"✅ Análise de sentimento concluída com sucesso!")
+                
+                return self._processar_resposta_zhipu(resposta_texto, texto_limpo)
+                
             except Exception as e:
                 print(f"❌ Erro na análise de sentimento (tentativa {tentativa + 1}): {str(e)}")
                 if tentativa < max_tentativas - 1:
@@ -104,60 +95,83 @@ class SentimentAnalyzer:
                     time.sleep(delay_entre_tentativas)
                     continue
                 else:
+                    print(f"❌ Todas as tentativas falharam")
+                    # Fallback para análise de palavras-chave
+                    palavras = self._analisar_palavras_chave(texto_limpo)
+                    sentimento, confianca = self._analisar_palavras_simples(palavras)
                     return {
-                        'sentimento': 'neutral',
-                        'confianca': 0.0,
-                        'detalhes': {'erro': str(e)}
+                        'sentimento': sentimento,
+                        'confianca': confianca,
+                        'detalhes': {
+                            'metodo': 'fallback_palavras_chave',
+                            'palavras_positivas': palavras['positivas'],
+                            'palavras_negativas': palavras['negativas'],
+                            'erro_api': str(e)
+                        }
                     }
 
-    def _processar_resposta_roberta(self, result: List, texto: str) -> Dict:
-        """Processa resposta da API RoBERTa e adiciona análise de palavras-chave"""
+    def _processar_resposta_zhipu(self, resposta_texto: str, texto: str) -> Dict:
+        """Processa resposta da API ZHIPU AI e adiciona análise de palavras-chave"""
         
-        if not result or not isinstance(result, list) or len(result) == 0:
+        try:
+            # Tentar fazer parse JSON
+            resposta_limpa = resposta_texto.strip()
+            
+            # Remover possíveis marcadores markdown
+            if resposta_limpa.startswith('```json'):
+                resposta_limpa = resposta_limpa[7:]
+            if resposta_limpa.startswith('```'):
+                resposta_limpa = resposta_limpa[3:]
+            if resposta_limpa.endswith('```'):
+                resposta_limpa = resposta_limpa[:-3]
+            
+            resultado_ia = json.loads(resposta_limpa.strip())
+            
+            sentimento_ia = resultado_ia.get('sentimento', 'neutral')
+            confianca_ia = float(resultado_ia.get('confianca', 0.5))
+            resumo_ia = resultado_ia.get('resumo', '')
+            
+            # Validar sentimento
+            if sentimento_ia not in ['positive', 'negative', 'neutral']:
+                sentimento_ia = 'neutral'
+            
+            # Análise complementar de palavras-chave
+            palavras_encontradas = self._analisar_palavras_chave(texto)
+            
+            # Combinar resultado da IA com análise de palavras
+            sentimento_final, confianca_final = self._combinar_analises(
+                sentimento_ia, confianca_ia, palavras_encontradas
+            )
+            
             return {
-                'sentimento': 'neutral',
-                'confianca': 0.0,
-                'detalhes': {'erro': 'Resposta inválida da API'}
+                'sentimento': sentimento_final,
+                'confianca': round(confianca_final, 3),
+                'detalhes': {
+                    'api_sentimento': sentimento_ia,
+                    'api_confianca': round(confianca_ia, 3),
+                    'api_resumo': resumo_ia,
+                    'palavras_positivas': palavras_encontradas['positivas'],
+                    'palavras_negativas': palavras_encontradas['negativas'],
+                    'metodo': 'zhipu_ai'
+                }
             }
-        
-        # Pegar classificações da API
-        classificacoes = result[0] if isinstance(result[0], list) else result
-        
-        # Encontrar sentimento com maior score
-        melhor_resultado = max(classificacoes, key=lambda x: x.get('score', 0))
-        
-        # Mapear labels para português
-        label_map = {
-            'LABEL_0': 'negative',   # Negativo
-            'LABEL_1': 'neutral',    # Neutro  
-            'LABEL_2': 'positive',   # Positivo
-            'negative': 'negative',
-            'neutral': 'neutral',
-            'positive': 'positive'
-        }
-        
-        sentimento_api = label_map.get(melhor_resultado.get('label', ''), 'neutral')
-        confianca_api = melhor_resultado.get('score', 0.0)
-        
-        # Análise de palavras-chave para melhorar precisão
-        palavras_encontradas = self._analisar_palavras_chave(texto)
-        
-        # Combinar resultado da API com análise de palavras
-        sentimento_final, confianca_final = self._combinar_analises(
-            sentimento_api, confianca_api, palavras_encontradas
-        )
-        
-        return {
-            'sentimento': sentimento_final,
-            'confianca': round(confianca_final, 3),
-            'detalhes': {
-                'api_sentimento': sentimento_api,
-                'api_confianca': round(confianca_api, 3),
-                'palavras_positivas': palavras_encontradas['positivas'],
-                'palavras_negativas': palavras_encontradas['negativas'],
-                'classificacoes_completas': classificacoes
+            
+        except json.JSONDecodeError:
+            print(f"⚠️ Erro ao fazer parse da resposta IA: {resposta_texto}")
+            # Fallback para análise de palavras-chave
+            palavras = self._analisar_palavras_chave(texto)
+            sentimento, confianca = self._analisar_palavras_simples(palavras)
+            
+            return {
+                'sentimento': sentimento,
+                'confianca': confianca,
+                'detalhes': {
+                    'metodo': 'fallback_palavras_chave',
+                    'palavras_positivas': palavras['positivas'],
+                    'palavras_negativas': palavras['negativas'],
+                    'resposta_bruta': resposta_texto[:100]
+                }
             }
-        }
 
     def _analisar_palavras_chave(self, texto: str) -> Dict:
         """Analisa palavras-chave de satisfação/insatisfação no texto"""
@@ -183,29 +197,40 @@ class SentimentAnalyzer:
             'score_palavras': len(palavras_positivas) - len(palavras_negativas)
         }
 
-    def _combinar_analises(self, sentimento_api: str, confianca_api: float, 
+    def _analisar_palavras_simples(self, palavras: Dict) -> Tuple[str, float]:
+        """Análise simples baseada em palavras-chave"""
+        score = palavras['score_palavras']
+        
+        if score >= 2:
+            return 'positive', 0.8
+        elif score <= -2:
+            return 'negative', 0.8
+        else:
+            return 'neutral', 0.6
+
+    def _combinar_analises(self, sentimento_ia: str, confianca_ia: float, 
                           palavras: Dict) -> Tuple[str, float]:
-        """Combina resultado da API com análise de palavras-chave"""
+        """Combina resultado da IA com análise de palavras-chave"""
         
         score_palavras = palavras['score_palavras']
         
         # Se palavras-chave são muito claras, dar mais peso a elas
         if abs(score_palavras) >= 2:  # 2+ palavras positivas ou negativas
             if score_palavras >= 2:
-                return 'positive', min(0.95, confianca_api + 0.1)
+                return 'positive', min(0.95, confianca_ia + 0.1)
             elif score_palavras <= -2:
-                return 'negative', min(0.95, confianca_api + 0.1)
+                return 'negative', min(0.95, confianca_ia + 0.1)
         
-        # Se há conflito entre API e palavras, analisar contexto
-        if score_palavras > 0 and sentimento_api == 'negative':
-            if confianca_api < 0.7:  # API pouco confiante
+        # Se há conflito entre IA e palavras, analisar contexto
+        if score_palavras > 0 and sentimento_ia == 'negative':
+            if confianca_ia < 0.7:  # IA pouco confiante
                 return 'neutral', 0.6
-        elif score_palavras < 0 and sentimento_api == 'positive':
-            if confianca_api < 0.7:  # API pouco confiante
+        elif score_palavras < 0 and sentimento_ia == 'positive':
+            if confianca_ia < 0.7:  # IA pouco confiante
                 return 'neutral', 0.6
         
-        # Usar resultado da API por padrão
-        return sentimento_api, confianca_api
+        # Usar resultado da IA por padrão
+        return sentimento_ia, confianca_ia
 
     def calcular_pontuacao_hibrida(self, respostas_dados: List[Dict]) -> Dict:
         """
@@ -415,7 +440,7 @@ class SentimentAnalyzer:
         return texto.strip()
 
     def testar_conexao(self) -> Dict:
-        """Testa conexão com a API Hugging Face"""
+        """Testa conexão com ZHIPU AI"""
         
         try:
             resultado = self.analisar_sentimento_texto("Este é um teste de conexão.")
