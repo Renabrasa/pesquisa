@@ -119,7 +119,7 @@ def processar_pesquisa(pesquisa_id):
         # Marcar como processada
         query_update = """
         UPDATE pesquisas 
-        SET ia_processada = TRUE, data_ia_processada = NOW()
+        SET ia_processada = TRUE
         WHERE id = %s
         """
         execute_query(query_update, (pesquisa_id,))
