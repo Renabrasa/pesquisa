@@ -291,7 +291,7 @@ def dashboard():
     params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
     
     query_pesquisas = f"""
-    SELECT 
+    SELECT DISTINCT
         p.id, p.uuid, p.agente_id, p.tipo_produto_id, p.codigo_cliente, p.nome_cliente, p.nome_treinamento,
         p.data_treinamento, p.respondida, p.data_resposta, p.data_expiracao, p.ip_resposta, p.created_at, p.updated_at, p.ia_processada,
         tp.nome as tipo_produto, u.nome as agente_nome,
