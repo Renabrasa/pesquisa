@@ -420,40 +420,61 @@ def dashboard():
     # === CONFIGURAR PAGINAÇÃO ===
     paginator = Paginator(total_pesquisas_paginacao, page, per_page)
     pagination_info = paginator.get_pagination_info()
-    
-    # === PESQUISAS RECENTES COM PAGINAÇÃO ===
+    # Adicionar parâmetros de paginação
+    params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
+
+    print(f"DEBUG - params_com_sentimento: {params_com_sentimento}")
+    print(f"DEBUG - per_page: {per_page}")
+    print(f"DEBUG - pagination_info['offset']: {pagination_info['offset']}")
+    print(f"DEBUG - where_clause_com_sentimento: {where_clause_com_sentimento}")
+
+
+    # === PESQUISAS RECENTES COM PAGINAÇÃO (CORRIGIDO) ===
     query_pesquisas = f"""
-    SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
-           -- LÓGICA DE STATUS CORRIGIDA
-           CASE 
-               WHEN p.respondida = TRUE THEN 'respondida'
-               WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 'expirada'
-               ELSE 'ativa'
-           END as status_pesquisa,
-           -- Dados de sentimento
-           as_sent.sentimento,
-           as_sent.pontuacao_hibrida,
-           as_sent.confianca,
-           p.ia_processada,
-           -- Dados de ações
-           -- ai.id as acao_id,
-           -- ai.status as acao_status,
-           -- ai.data_registro as acao_data,
-           -- Tempo até expiração
-           CASE 
-               WHEN p.respondida = TRUE THEN NULL
-               WHEN p.data_expiracao <= NOW() THEN 0
-               ELSE TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)
-           END as horas_restantes
+    SELECT 
+        p.id,
+        p.uuid,
+        p.agente_id,
+        p.tipo_produto_id,
+        p.codigo_cliente,
+        p.nome_cliente,
+        p.nome_treinamento,
+        p.data_treinamento,
+        p.respondida,
+        p.data_resposta,
+        p.data_expiracao,
+        p.ip_resposta,
+        p.created_at,
+        p.updated_at,
+        p.ia_processada,
+        tp.nome as tipo_produto, 
+        u.nome as agente_nome,
+        -- LÓGICA DE STATUS CORRIGIDA
+        CASE 
+            WHEN p.respondida = TRUE THEN 'respondida'
+            WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 'expirada'
+            ELSE 'ativa'
+        END as status_pesquisa,
+        -- Dados de sentimento
+        as_sent.sentimento,
+        as_sent.pontuacao_hibrida,
+        as_sent.confianca,
+        -- Tempo até expiração
+        CASE 
+            WHEN p.respondida = TRUE THEN NULL
+            WHEN p.data_expiracao <= NOW() THEN 0
+            ELSE TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)
+        END as horas_restantes
     FROM pesquisas p
     LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
     LEFT JOIN usuarios u ON p.agente_id = u.id
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
-    -- LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
     WHERE {where_clause_com_sentimento}
     ORDER BY p.created_at DESC
     LIMIT %s OFFSET %s
     """
+
+    pesquisas = execute_query(query_pesquisas, params_pesquisas, fetch=True) or []
     
     # Adicionar parâmetros de paginação
     params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
