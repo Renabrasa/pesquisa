@@ -52,6 +52,15 @@ def processar_pesquisa(pesquisa_id):
         print(f"🔄 Processando pesquisa ID: {pesquisa_id}")
         print(f"{'='*60}")
         
+        # ✅ MARCAR COMO PROCESSADA IMEDIATAMENTE (antes de qualquer processamento)
+        query_update_imediato = """
+        UPDATE pesquisas 
+        SET ia_processada = TRUE
+        WHERE id = %s
+        """
+        execute_query(query_update_imediato, (pesquisa_id,))
+        print(f"   ✅ Pesquisa marcada como processada (proteção contra duplicatas)")
+        
         # Buscar respostas
         respostas = buscar_respostas_pesquisa(pesquisa_id)
         
@@ -116,16 +125,6 @@ def processar_pesquisa(pesquisa_id):
         
         print(f"   ✅ Análise salva no banco")
         
-        # Marcar como processada
-        query_update = """
-        UPDATE pesquisas 
-        SET ia_processada = TRUE
-        WHERE id = %s
-        """
-        execute_query(query_update, (pesquisa_id,))
-        
-        print(f"   ✅ Pesquisa marcada como processada")
-        
         # Enviar email se negativo
         if resultado_analise['deve_alertar']:
             print(f"   🚨 Enviando alertas...")
@@ -144,6 +143,17 @@ def processar_pesquisa(pesquisa_id):
         
     except Exception as e:
         print(f"   ❌ Erro ao processar: {str(e)}")
+        # Se houve erro, marcar como NÃO processada para tentar novamente
+        query_rollback = """
+        UPDATE pesquisas 
+        SET ia_processada = FALSE
+        WHERE id = %s
+        """
+        try:
+            execute_query(query_rollback, (pesquisa_id,))
+            print(f"   🔄 Pesquisa desmarcada para reprocessamento")
+        except:
+            pass
         return False
 
 def main():
