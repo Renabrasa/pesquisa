@@ -436,9 +436,9 @@ def dashboard():
            as_sent.confianca,
            p.ia_processada,
            -- Dados de ações
-           ai.id as acao_id,
-           ai.status as acao_status,
-           ai.data_registro as acao_data,
+           -- ai.id as acao_id,
+           -- ai.status as acao_status,
+           -- ai.data_registro as acao_data,
            -- Tempo até expiração
            CASE 
                WHEN p.respondida = TRUE THEN NULL
@@ -449,7 +449,7 @@ def dashboard():
     LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
     LEFT JOIN usuarios u ON p.agente_id = u.id
     LEFT JOIN analises_sentimento as_sent ON p.id = as_sent.pesquisa_id
-    LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
+    -- LEFT JOIN acoes_insatisfacao ai ON p.id = ai.pesquisa_id
     WHERE {where_clause_com_sentimento}
     ORDER BY p.created_at DESC
     LIMIT %s OFFSET %s
