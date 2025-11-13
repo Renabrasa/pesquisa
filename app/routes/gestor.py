@@ -25,15 +25,15 @@ def dashboard():
     
     # Validar parâmetros
     page = max(1, page)
-    per_page = min(max(10, per_page), 100)  # Entre 10 e 100 itens por página
+    per_page = min(max(10, per_page), 100)
     
     # Capturar filtros da URL
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
     busca = request.args.get('busca', '').strip()
-    status = request.args.get('status', '')  # NOVO FILTRO
-    produto_id = request.args.get('produto_id', '')  # NOVO FILTRO DE PRODUTO
-    sentimento = request.args.get('sentimento', '')  # FILTRO DE SENTIMENTO
+    status = request.args.get('status', '')
+    produto_id = request.args.get('produto_id', '')
+    sentimento = request.args.get('sentimento', '')
     
     print(f"DEBUG - Filtros recebidos: data_inicio={data_inicio}, data_fim={data_fim}, busca='{busca}', status='{status}', produto_id='{produto_id}'")
     print(f"DEBUG - Paginação: page={page}, per_page={per_page}")
@@ -42,11 +42,10 @@ def dashboard():
     query_produtos = "SELECT id, nome FROM tipos_produtos ORDER BY nome"
     produtos = execute_query(query_produtos, fetch=True) or []
     
-    # Construir condições WHERE baseadas nos filtros
+    # === CONSTRUIR CONDIÇÕES WHERE ===
     condicoes_where = []
     params_base = []
     
-    # Filtro de data
     if data_inicio:
         condicoes_where.append("DATE(p.created_at) >= %s")
         params_base.append(data_inicio)
@@ -55,7 +54,6 @@ def dashboard():
         condicoes_where.append("DATE(p.created_at) <= %s")
         params_base.append(data_fim)
     
-    # Filtro de busca (código, cliente, treinamento, agente)
     if busca:
         condicoes_where.append("""(
             p.codigo_cliente LIKE %s OR 
@@ -66,7 +64,6 @@ def dashboard():
         busca_param = f"%{busca}%"
         params_base.extend([busca_param, busca_param, busca_param, busca_param])
     
-    # NOVO: Filtro de status
     if status:
         if status == 'respondida':
             condicoes_where.append("p.respondida = TRUE")
@@ -75,16 +72,14 @@ def dashboard():
         elif status == 'expirada':
             condicoes_where.append("p.respondida = FALSE AND p.data_expiracao <= NOW()")
     
-    # NOVO: Filtro de produto
     if produto_id:
         condicoes_where.append("p.tipo_produto_id = %s")
         params_base.append(produto_id)
     
-    # NOVO: Filtro de sentimento
-# Montar cláusula WHERE sem sentimento
+    # Montar cláusula WHERE
     where_clause = " AND ".join(condicoes_where) if condicoes_where else "1=1"
 
-    # WHERE clause especial COM sentimento (apenas para query principal)
+    # WHERE clause COM sentimento (apenas para query principal)
     if sentimento:
         condicoes_where_com_sentimento = condicoes_where + ["as_sent.sentimento = %s"]
         where_clause_com_sentimento = " AND ".join(condicoes_where_com_sentimento)
@@ -93,7 +88,7 @@ def dashboard():
         where_clause_com_sentimento = where_clause
         params_com_sentimento = params_base
         
-    # === MÉTRICAS GERAIS COM FILTROS ===
+    # === MÉTRICAS GERAIS ===
     query_metricas = f"""
     SELECT 
         COUNT(*) as total_pesquisas,
@@ -105,7 +100,6 @@ def dashboard():
             NULLIF(COUNT(*), 0), 1
         ) as taxa_resposta,
         COUNT(DISTINCT p.codigo_cliente) as clientes_unicos,
-        -- NOVO KPI: Atendimentos mal avaliados
         SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as mal_avaliados,
         ROUND(
             (SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) * 100.0) / 
@@ -124,45 +118,26 @@ def dashboard():
         'mal_avaliados': 0, 'percentual_mal_avaliados': 0
     }
     
-    # Garantir que valores não sejam None
     for key in metricas:
         if metricas[key] is None:
             metricas[key] = 0
     
-    # === MÉTRICAS POR PRODUTO COM FILTROS ===
-    # Ajustar query para não duplicar filtro de produto nas estatísticas por produto
+    # === MÉTRICAS POR PRODUTO ===
     where_clause_produto = where_clause
     params_produto = params_base.copy()
     
-    # Se há filtro de produto, removê-lo das stats por produto para mostrar comparação
     if produto_id:
-        # Remover a condição de produto da WHERE clause
         condicoes_sem_produto = [cond for cond in condicoes_where if not cond.startswith("p.tipo_produto_id")]
         where_clause_produto = " AND ".join(condicoes_sem_produto) if condicoes_sem_produto else "1=1"
-        params_produto = params_base[:-1]  # Remover último parâmetro (produto_id)
+        params_produto = params_base[:-1]
     
     query_por_produto = f"""
     SELECT 
-        tp.id,
-        tp.nome,
+        tp.id, tp.nome,
         COUNT(p.id) as total,
         SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        COALESCE(
-            ROUND(
-                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-                NULLIF(COUNT(p.id), 0), 1
-            ), 0
-        ) as taxa,
-        ROUND(AVG(
-            CASE 
-                WHEN r.resposta_texto = 'Muito Satisfeito' THEN 5
-                WHEN r.resposta_texto = 'Satisfeito' THEN 4
-                WHEN r.resposta_texto = 'Neutro' THEN 3
-                WHEN r.resposta_texto = 'Insatisfeito' THEN 2
-                WHEN r.resposta_texto = 'Muito Insatisfeito' THEN 1
-                ELSE NULL
-            END
-        ), 1) as media_satisfacao,
+        COALESCE(ROUND((SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / NULLIF(COUNT(p.id), 0), 1), 0) as taxa,
+        ROUND(AVG(CASE WHEN r.resposta_texto = 'Muito Satisfeito' THEN 5 WHEN r.resposta_texto = 'Satisfeito' THEN 4 WHEN r.resposta_texto = 'Neutro' THEN 3 WHEN r.resposta_texto = 'Insatisfeito' THEN 2 WHEN r.resposta_texto = 'Muito Insatisfeito' THEN 1 ELSE NULL END), 1) as media_satisfacao,
         SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos
     FROM tipos_produtos tp
     LEFT JOIN pesquisas p ON tp.id = p.tipo_produto_id
@@ -176,16 +151,13 @@ def dashboard():
     
     por_produto = execute_query(query_por_produto, params_produto, fetch=True) or []
     
-    # === MÉTRICAS POR AGENTE COM FILTROS ===
+    # === MÉTRICAS POR AGENTE ===
     query_por_agente = f"""
     SELECT 
         COALESCE(u.nome, 'Agente Desconhecido') as nome,
         COUNT(p.id) as total,
         SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-        ROUND(
-            (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(COUNT(p.id), 0), 1
-        ) as taxa,
+        ROUND((SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / NULLIF(COUNT(p.id), 0), 1) as taxa,
         SUM(CASE WHEN as_sent.sentimento = 'negative' THEN 1 ELSE 0 END) as negativos
     FROM pesquisas p
     LEFT JOIN usuarios u ON p.agente_id = u.id
@@ -198,142 +170,76 @@ def dashboard():
     
     por_agente = execute_query(query_por_agente, params_base, fetch=True) or []
     
-    # === MÉTRICAS TEMPORAIS COM FILTROS ===
-    if data_inicio and data_fim:
-        # Com filtro: comparar primeira metade vs segunda metade do período
-        query_periodo_1 = f"""
-        SELECT 
-            COUNT(*) as criadas,
-            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-            ROUND(
-                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-                NULLIF(COUNT(*), 0), 1
-            ) as taxa
-        FROM pesquisas p
-        LEFT JOIN usuarios u ON p.agente_id = u.id
-        WHERE DATE(p.created_at) >= %s AND DATE(p.created_at) <= %s
-        """
-        
-        # Calcular meio período
-        from datetime import datetime, timedelta
-        inicio = datetime.strptime(data_inicio, '%Y-%m-%d')
-        fim = datetime.strptime(data_fim, '%Y-%m-%d')
-        meio = inicio + (fim - inicio) / 2
-        meio_str = meio.strftime('%Y-%m-%d')
-        
-        # Ajustar parâmetros para incluir outros filtros
-        params_extras = []
-        where_extra = ""
-        
-        if busca:
-            where_extra += f" AND (p.codigo_cliente LIKE %s OR p.nome_cliente LIKE %s OR p.nome_treinamento LIKE %s OR u.nome LIKE %s)"
-            params_extras.extend([busca_param, busca_param, busca_param, busca_param])
-        
-        if status:
-            if status == 'respondida':
-                where_extra += " AND p.respondida = TRUE"
-            elif status == 'ativa':
-                where_extra += " AND p.respondida = FALSE AND p.data_expiracao > NOW()"
-            elif status == 'expirada':
-                where_extra += " AND p.respondida = FALSE AND p.data_expiracao <= NOW()"
-        
-        if produto_id:
-            where_extra += " AND p.tipo_produto_id = %s"
-            params_extras.append(produto_id)
-        
-        periodo_1_params = [data_inicio, meio_str] + params_extras
-        periodo_2_params = [meio_str, data_fim] + params_extras
-        
-        query_periodo_1 += where_extra
-        query_periodo_2 = query_periodo_1.replace(f"'>= %s AND DATE(p.created_at) <= %s'", f"'>= %s AND DATE(p.created_at) <= %s'")
-        
-        esta_semana_result = execute_query(query_periodo_1, periodo_1_params, fetch=True)
-        semana_passada_result = execute_query(query_periodo_2, periodo_2_params, fetch=True)
-        
-        este_mes = esta_semana_result[0] if esta_semana_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-        mes_passado = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-        
-    else:
-        # Sem filtro de data: usar períodos relativos normais
-        where_extra = ""
-        params_extras = []
-        
-        if busca:
-            where_extra += f" AND (p.codigo_cliente LIKE %s OR p.nome_cliente LIKE %s OR p.nome_treinamento LIKE %s OR u.nome LIKE %s)"
-            params_extras.extend([busca_param, busca_param, busca_param, busca_param])
-        
-        if status:
-            if status == 'respondida':
-                where_extra += " AND p.respondida = TRUE"
-            elif status == 'ativa':
-                where_extra += " AND p.respondida = FALSE AND p.data_expiracao > NOW()"
-            elif status == 'expirada':
-                where_extra += " AND p.respondida = FALSE AND p.data_expiracao <= NOW()"
-        
-        if produto_id:
-            where_extra += " AND p.tipo_produto_id = %s"
-            params_extras.append(produto_id)
-        
-        query_esta_semana = f"""
-        SELECT 
-            COUNT(*) as criadas,
-            SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
-            ROUND(
-                (SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / 
-                NULLIF(COUNT(*), 0), 1
-            ) as taxa
-        FROM pesquisas p
-        LEFT JOIN usuarios u ON p.agente_id = u.id
-        WHERE YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)
-        {where_extra}
-        """
-        
-        query_semana_passada = query_esta_semana.replace("YEARWEEK(CURDATE(), 1)", "YEARWEEK(CURDATE(), 1) - 1")
-        query_este_mes = query_esta_semana.replace("YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)", 
-                                                  "YEAR(p.created_at) = YEAR(CURDATE()) AND MONTH(p.created_at) = MONTH(CURDATE())")
-        query_mes_passado = query_este_mes.replace("MONTH(CURDATE())", "MONTH(CURDATE() - INTERVAL 1 MONTH)").replace("YEAR(CURDATE())", "YEAR(CURDATE() - INTERVAL 1 MONTH)")
-        
-        esta_semana_result = execute_query(query_esta_semana, params_extras, fetch=True)
-        semana_passada_result = execute_query(query_semana_passada, params_extras, fetch=True)
-        este_mes_result = execute_query(query_este_mes, params_extras, fetch=True)
-        mes_passado_result = execute_query(query_mes_passado, params_extras, fetch=True)
-        
-        este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
-        mes_passado = mes_passado_result[0] if mes_passado_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+    # === MÉTRICAS TEMPORAIS ===
+    where_extra = ""
+    params_extras = []
+    
+    if busca:
+        where_extra += f" AND (p.codigo_cliente LIKE %s OR p.nome_cliente LIKE %s OR p.nome_treinamento LIKE %s OR u.nome LIKE %s)"
+        params_extras.extend([busca_param, busca_param, busca_param, busca_param])
+    
+    if status:
+        if status == 'respondida':
+            where_extra += " AND p.respondida = TRUE"
+        elif status == 'ativa':
+            where_extra += " AND p.respondida = FALSE AND p.data_expiracao > NOW()"
+        elif status == 'expirada':
+            where_extra += " AND p.respondida = FALSE AND p.data_expiracao <= NOW()"
+    
+    if produto_id:
+        where_extra += " AND p.tipo_produto_id = %s"
+        params_extras.append(produto_id)
+    
+    query_esta_semana = f"""
+    SELECT COUNT(*) as criadas,
+           SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) as respondidas,
+           ROUND((SUM(CASE WHEN p.respondida = TRUE THEN 1 ELSE 0 END) * 100.0) / NULLIF(COUNT(*), 0), 1) as taxa
+    FROM pesquisas p
+    LEFT JOIN usuarios u ON p.agente_id = u.id
+    WHERE YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)
+    {where_extra}
+    """
+    
+    query_semana_passada = query_esta_semana.replace("YEARWEEK(CURDATE(), 1)", "YEARWEEK(CURDATE(), 1) - 1")
+    query_este_mes = query_esta_semana.replace("YEARWEEK(p.created_at, 1) = YEARWEEK(CURDATE(), 1)", "YEAR(p.created_at) = YEAR(CURDATE()) AND MONTH(p.created_at) = MONTH(CURDATE())")
+    query_mes_passado = query_este_mes.replace("MONTH(CURDATE())", "MONTH(CURDATE() - INTERVAL 1 MONTH)").replace("YEAR(CURDATE())", "YEAR(CURDATE() - INTERVAL 1 MONTH)")
+    
+    esta_semana_result = execute_query(query_esta_semana, params_extras, fetch=True)
+    semana_passada_result = execute_query(query_semana_passada, params_extras, fetch=True)
+    este_mes_result = execute_query(query_este_mes, params_extras, fetch=True)
+    mes_passado_result = execute_query(query_mes_passado, params_extras, fetch=True)
     
     esta_semana = esta_semana_result[0] if esta_semana_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
     semana_passada = semana_passada_result[0] if semana_passada_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+    este_mes = este_mes_result[0] if este_mes_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
+    mes_passado = mes_passado_result[0] if mes_passado_result else {'criadas': 0, 'respondidas': 0, 'taxa': 0}
     
-    # Garantir que valores não sejam None
     for periodo in [esta_semana, semana_passada, este_mes, mes_passado]:
         for key in periodo:
             if periodo[key] is None:
                 periodo[key] = 0
     
-    # === NOVA FUNCIONALIDADE: PESQUISAS PENDENTES ===
+    # === PESQUISAS PENDENTES ===
     query_pendentes = f"""
     SELECT p.*, tp.nome as tipo_produto, u.nome as agente_nome,
            TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) as horas_restantes,
-           CASE 
-               WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 6 THEN 'critico'
-               WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 24 THEN 'atencao'
-               ELSE 'normal'
+           CASE WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 6 THEN 'critico'
+                WHEN TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) <= 24 THEN 'atencao'
+                ELSE 'normal'
            END as urgencia
     FROM pesquisas p
     LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
     LEFT JOIN usuarios u ON p.agente_id = u.id
-    WHERE p.respondida = FALSE 
-    AND p.data_expiracao > NOW()
+    WHERE p.respondida = FALSE AND p.data_expiracao > NOW()
     AND ({where_clause})
     ORDER BY p.data_expiracao ASC
     LIMIT 15
     """
     
-    # Ajustar parâmetros para query de pendentes
     params_pendentes = params_base if where_clause != "1=1" else []
     pesquisas_pendentes = execute_query(query_pendentes, params_pendentes, fetch=True) or []
     
-    # === ESTATÍSTICAS DE PESQUISAS PENDENTES ===
+    # === ESTATÍSTICAS DE PENDENTES ===
     query_stats_pendentes = f"""
     SELECT 
         COUNT(*) as total_pendentes,
@@ -342,17 +248,13 @@ def dashboard():
         AVG(TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)) as media_horas_restantes
     FROM pesquisas p
     LEFT JOIN usuarios u ON p.agente_id = u.id
-    WHERE p.respondida = FALSE 
-    AND p.data_expiracao > NOW()
+    WHERE p.respondida = FALSE AND p.data_expiracao > NOW()
     AND ({where_clause})
     """
     
     stats_pendentes_result = execute_query(query_stats_pendentes, params_pendentes, fetch=True)
-    stats_pendentes = stats_pendentes_result[0] if stats_pendentes_result else {
-        'total_pendentes': 0, 'criticas': 0, 'atencao': 0, 'media_horas_restantes': 0
-    }
+    stats_pendentes = stats_pendentes_result[0] if stats_pendentes_result else {'total_pendentes': 0, 'criticas': 0, 'atencao': 0, 'media_horas_restantes': 0}
     
-    # Garantir que valores não sejam None
     for key in stats_pendentes:
         if stats_pendentes[key] is None:
             stats_pendentes[key] = 0
@@ -360,111 +262,42 @@ def dashboard():
     # === GERAR ALERTAS ===
     alertas = []
     
-    # Alerta de baixa taxa de resposta
     if (metricas.get('taxa_resposta') or 0) < 50:
-        alertas.append({
-            'tipo': 'warning',
-            'titulo': 'Taxa de Resposta Baixa',
-            'mensagem': f'Taxa atual: {metricas["taxa_resposta"]}%. Considere revisar os links.'
-        })
+        alertas.append({'tipo': 'warning', 'titulo': 'Taxa de Resposta Baixa', 'mensagem': f'Taxa atual: {metricas["taxa_resposta"]}%. Considere revisar os links.'})
     
-    # Alerta de muitas pesquisas expiradas
     if (metricas.get('expiradas') or 0) > (metricas.get('respondidas') or 0):
-        alertas.append({
-            'tipo': 'danger',
-            'titulo': 'Muitas Expiradas',
-            'mensagem': f'{metricas["expiradas"]} pesquisas expiraram sem resposta.'
-        })
+        alertas.append({'tipo': 'danger', 'titulo': 'Muitas Expiradas', 'mensagem': f'{metricas["expiradas"]} pesquisas expiraram sem resposta.'})
     
-    # NOVO ALERTA: Alto percentual de insatisfação
     if (metricas.get('percentual_mal_avaliados') or 0) > 15:
-        alertas.append({
-            'tipo': 'danger',
-            'titulo': 'Alto Índice de Insatisfação',
-            'mensagem': f'{metricas["percentual_mal_avaliados"]}% dos atendimentos foram mal avaliados.'
-        })
+        alertas.append({'tipo': 'danger', 'titulo': 'Alto Índice de Insatisfação', 'mensagem': f'{metricas["percentual_mal_avaliados"]}% dos atendimentos foram mal avaliados.'})
     
-    # NOVO ALERTA: Pesquisas críticas
     if (stats_pendentes.get('criticas') or 0) > 0:
-        alertas.append({
-            'tipo': 'danger',
-            'titulo': 'Pesquisas Expirando',
-            'mensagem': f'{stats_pendentes["criticas"]} pesquisa(s) expira(m) em menos de 6 horas!'
-        })
+        alertas.append({'tipo': 'danger', 'titulo': 'Pesquisas Expirando', 'mensagem': f'{stats_pendentes["criticas"]} pesquisa(s) expira(m) em menos de 6 horas!'})
     elif (stats_pendentes.get('atencao') or 0) > 3:
-        alertas.append({
-            'tipo': 'warning',
-            'titulo': 'Muitas Pesquisas Pendentes',
-            'mensagem': f'{stats_pendentes["atencao"]} pesquisa(s) expira(m) nas próximas 24 horas.'
-        })
+        alertas.append({'tipo': 'warning', 'titulo': 'Muitas Pesquisas Pendentes', 'mensagem': f'{stats_pendentes["atencao"]} pesquisa(s) expira(m) nas próximas 24 horas.'})
     
-    # Alerta de queda na performance
     if (esta_semana.get('taxa') or 0) and (semana_passada.get('taxa') or 0) and (esta_semana.get('taxa') or 0) < (semana_passada.get('taxa') or 0) - 10:
-        alertas.append({
-            'tipo': 'warning',
-            'titulo': 'Queda na Performance',
-            'mensagem': f'Taxa caiu {semana_passada["taxa"] - esta_semana["taxa"]:.1f}% em relação ao período anterior.'
-        })
+        alertas.append({'tipo': 'warning', 'titulo': 'Queda na Performance', 'mensagem': f'Taxa caiu {semana_passada["taxa"] - esta_semana["taxa"]:.1f}% em relação ao período anterior.'})
     
-    # === PAGINAÇÃO: CONTAR TOTAL DE PESQUISAS ===
-    query_count_pesquisas = f"""
-    SELECT COUNT(*) as total
-    FROM pesquisas p
-    LEFT JOIN usuarios u ON p.agente_id = u.id
-    WHERE {where_clause}
-    """
-    
-    count_result = execute_query(query_count_pesquisas, params_base, fetch=True)
+    # === PAGINAÇÃO ===
+    query_count = f"SELECT COUNT(*) as total FROM pesquisas p LEFT JOIN usuarios u ON p.agente_id = u.id WHERE {where_clause}"
+    count_result = execute_query(query_count, params_base, fetch=True)
     total_pesquisas_paginacao = count_result[0]['total'] if count_result else 0
     
-    # === CONFIGURAR PAGINAÇÃO ===
     paginator = Paginator(total_pesquisas_paginacao, page, per_page)
     pagination_info = paginator.get_pagination_info()
-    # Adicionar parâmetros de paginação
+    
+    # === PESQUISAS RECENTES (UMA ÚNICA EXECUÇÃO) ===
     params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
-
-    print(f"DEBUG - params_com_sentimento: {params_com_sentimento}")
-    print(f"DEBUG - per_page: {per_page}")
-    print(f"DEBUG - pagination_info['offset']: {pagination_info['offset']}")
-    print(f"DEBUG - where_clause_com_sentimento: {where_clause_com_sentimento}")
-
-
-    # === PESQUISAS RECENTES COM PAGINAÇÃO (CORRIGIDO) ===
+    
     query_pesquisas = f"""
     SELECT 
-        p.id,
-        p.uuid,
-        p.agente_id,
-        p.tipo_produto_id,
-        p.codigo_cliente,
-        p.nome_cliente,
-        p.nome_treinamento,
-        p.data_treinamento,
-        p.respondida,
-        p.data_resposta,
-        p.data_expiracao,
-        p.ip_resposta,
-        p.created_at,
-        p.updated_at,
-        p.ia_processada,
-        tp.nome as tipo_produto, 
-        u.nome as agente_nome,
-        -- LÓGICA DE STATUS CORRIGIDA
-        CASE 
-            WHEN p.respondida = TRUE THEN 'respondida'
-            WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 'expirada'
-            ELSE 'ativa'
-        END as status_pesquisa,
-        -- Dados de sentimento
-        as_sent.sentimento,
-        as_sent.pontuacao_hibrida,
-        as_sent.confianca,
-        -- Tempo até expiração
-        CASE 
-            WHEN p.respondida = TRUE THEN NULL
-            WHEN p.data_expiracao <= NOW() THEN 0
-            ELSE TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao)
-        END as horas_restantes
+        p.id, p.uuid, p.agente_id, p.tipo_produto_id, p.codigo_cliente, p.nome_cliente, p.nome_treinamento,
+        p.data_treinamento, p.respondida, p.data_resposta, p.data_expiracao, p.ip_resposta, p.created_at, p.updated_at, p.ia_processada,
+        tp.nome as tipo_produto, u.nome as agente_nome,
+        CASE WHEN p.respondida = TRUE THEN 'respondida' WHEN p.respondida = FALSE AND p.data_expiracao <= NOW() THEN 'expirada' ELSE 'ativa' END as status_pesquisa,
+        as_sent.sentimento, as_sent.pontuacao_hibrida, as_sent.confianca,
+        CASE WHEN p.respondida = TRUE THEN NULL WHEN p.data_expiracao <= NOW() THEN 0 ELSE TIMESTAMPDIFF(HOUR, NOW(), p.data_expiracao) END as horas_restantes
     FROM pesquisas p
     LEFT JOIN tipos_produtos tp ON p.tipo_produto_id = tp.id
     LEFT JOIN usuarios u ON p.agente_id = u.id
@@ -473,18 +306,10 @@ def dashboard():
     ORDER BY p.created_at DESC
     LIMIT %s OFFSET %s
     """
-
-    pesquisas = execute_query(query_pesquisas, params_pesquisas, fetch=True) or []
-    
-    # Adicionar parâmetros de paginação
-    params_pesquisas = params_com_sentimento + [per_page, pagination_info['offset']]
-    
-    # Debug (OPCIONAL)
-    print(f"Query principal - Parâmetros: {params_pesquisas}")
     
     pesquisas = execute_query(query_pesquisas, params_pesquisas, fetch=True) or []
     
-    # === ORGANIZAR MÉTRICAS COMPLETAS ===
+    # === ORGANIZAR MÉTRICAS ===
     metricas_completas = {
         'total_pesquisas': metricas['total_pesquisas'],
         'respondidas': metricas['respondidas'],
@@ -501,7 +326,6 @@ def dashboard():
         'este_mes': este_mes,
         'mes_passado': mes_passado,
         'alertas': alertas,
-        # NOVAS FUNCIONALIDADES
         'pesquisas_pendentes': pesquisas_pendentes,
         'stats_pendentes': stats_pendentes
     }
@@ -509,8 +333,8 @@ def dashboard():
     return render_template('gestor/dashboard.html', 
                          metricas=metricas_completas, 
                          pesquisas=pesquisas,
-                         produtos=produtos,  # PASSAR PRODUTOS PARA O TEMPLATE
-                         pagination=pagination_info)  # NOVO: DADOS DE PAGINAÇÃO
+                         produtos=produtos,
+                         pagination=pagination_info)
 
 @bp.route('/detalhes/<int:pesquisa_id>')
 @gestor_required
